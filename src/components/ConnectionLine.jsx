@@ -28,7 +28,28 @@ const InterfaceLabel = styled.text`
 
 const StyledGroup = styled.g``;
 
-const StyledPath = styled.path``;
+const StyledPath = styled.path`
+  stroke: ${props => {
+    if (props.$selected) return '#4CAF50';
+    if (props.$isHovered) return '#2196F3';
+    return props.$isDarkMode ? '#666' : '#666';
+  }};
+  stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
+  cursor: pointer;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+`;
+
+const ConnectionGroup = styled(StyledGroup)`
+  &:hover {
+    ${StyledPath} {
+      stroke: #2196F3;
+      stroke-width: 3;
+    }
+    ${ConnectionBulb} {
+      fill: #2196F3;
+    }
+  }
+`;
 
 const ConnectionLine = ({ 
   connection,
@@ -39,7 +60,8 @@ const ConnectionLine = ({
   onControlPointsChange,
   showInterfaceLabels = true,
   type = 'solid',
-  selected = false
+  selected = false,
+  onClick
 }) => {
   const { isDarkMode } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
@@ -221,26 +243,29 @@ const ConnectionLine = ({
   const labelAngle = angle > 90 || angle < -90 ? angle + 180 : angle;
 
   return (
-    <StyledGroup
+    <ConnectionGroup 
       ref={svgRef}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={onClick}
     >
       {/* Source bulb to label or target bulb */}
       {showInterfaceLabels ? (
         <StyledPath
           d={`M ${points.source.x} ${points.source.y} L ${points.labels.source.x} ${points.labels.source.y}`}
-          stroke={selected ? "#2196F3" : isDarkMode ? "#ffffff" : "#666"}
-          strokeWidth="2"
           fill="none"
+          $isDarkMode={isDarkMode}
+          $selected={selected}
+          $isHovered={isHovered}
           {...strokeProps}
         />
       ) : (
         <StyledPath
           d={`M ${points.source.x} ${points.source.y} L ${points.target.x} ${points.target.y}`}
-          stroke={selected ? "#2196F3" : isDarkMode ? "#ffffff" : "#666"}
-          strokeWidth="2"
           fill="none"
+          $isDarkMode={isDarkMode}
+          $selected={selected}
+          $isHovered={isHovered}
           {...strokeProps}
         />
       )}
@@ -249,9 +274,10 @@ const ConnectionLine = ({
       {showInterfaceLabels && (
         <StyledPath
           d={`M ${points.lines.sourceStart.x} ${points.lines.sourceStart.y} L ${points.lines.targetEnd.x} ${points.lines.targetEnd.y}`}
-          stroke={selected ? "#2196F3" : isDarkMode ? "#ffffff" : "#666"}
-          strokeWidth="2"
           fill="none"
+          $isDarkMode={isDarkMode}
+          $selected={selected}
+          $isHovered={isHovered}
           {...strokeProps}
         />
       )}
@@ -260,9 +286,10 @@ const ConnectionLine = ({
       {showInterfaceLabels && (
         <StyledPath
           d={`M ${points.labels.target.x} ${points.labels.target.y} L ${points.target.x} ${points.target.y}`}
-          stroke={selected ? "#2196F3" : isDarkMode ? "#ffffff" : "#666"}
-          strokeWidth="2"
           fill="none"
+          $isDarkMode={isDarkMode}
+          $selected={selected}
+          $isHovered={isHovered}
           {...strokeProps}
         />
       )}
@@ -285,7 +312,7 @@ const ConnectionLine = ({
       {/* Glowing bulbs at the ends */}
       <ConnectionBulb cx={points.source.x} cy={points.source.y} r="4" />
       <ConnectionBulb cx={points.target.x} cy={points.target.y} r="4" />
-    </StyledGroup>
+    </ConnectionGroup>
   );
 };
 

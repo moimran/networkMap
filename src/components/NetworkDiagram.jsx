@@ -10,6 +10,9 @@ import LeftMenu from './LeftMenu';
 import { useTheme } from '../context/ThemeContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useNetworkDevices } from '../hooks/useNetworkDevices';
+import { useConnections } from '../hooks/useConnections';
+import { useNetworkConfig } from '../hooks/useNetworkConfig';
 
 // Styled component for the diagram container
 const DiagramContainer = styled.div`
@@ -172,22 +175,46 @@ const networkIcons = [
 function NetworkDiagram() {
   // Get the current theme from the context
   const { isDarkMode } = useTheme();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const configFile = new URLSearchParams(location.search).get('configFile');
 
-  // State variables for devices, connections, pending connection, mouse position, 
-  // show context menu, context menu position, selected device, selected connection type
-  const [devices, setDevices] = useState([]);
-  const [connections, setConnections] = useState([]);
+  // State for unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Use custom hooks for devices and connections
+  const {
+    devices,
+    setDevices,
+    addDevice,
+    updateDevice,
+    deleteDevice,
+    getDeviceById
+  } = useNetworkDevices(setHasUnsavedChanges);
+
+  const {
+    connections,
+    setConnections,
+    selectedConnection,
+    selectedConnectionType,
+    addConnection,
+    updateConnection,
+    deleteConnection,
+    handleConnectionTypeChange,
+    handleConnectionClick,
+    deleteConnectionsForDevice
+  } = useConnections(setHasUnsavedChanges);
+
+  // Use config hook for loading/saving
+  const { saveConfig } = useNetworkConfig(configFile, setDevices, setConnections);
+
+  // Preserve existing state
   const [pendingConnection, setPendingConnection] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [selectedConnectionType, setSelectedConnectionType] = useState('solid');
   const [isDragging, setIsDragging] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const configFile = new URLSearchParams(location.search).get('configFile');
 
   // Load config from file
   useEffect(() => {
@@ -217,26 +244,39 @@ function NetworkDiagram() {
     setHasUnsavedChanges(true);
   }, [devices, connections]);
 
-  // Save config to file
+  // Handler for saving the configuration
   const handleSave = async () => {
     if (!configFile || !hasUnsavedChanges) return;
 
     try {
-      await axios.post('/networkmap/api/save-config', {
-        path: configFile,
-        config: {
-          devices,
-          connections
-        }
-      });
-      setHasUnsavedChanges(false);
+      await saveConfig(devices, connections);
+      setHasUnsavedChanges(false); // Ensure state is updated
+      window.addNotification('Configuration saved successfully', 'success');
     } catch (error) {
       console.error('Error saving config:', error);
+      window.addNotification('Error saving configuration', 'error');
     }
   };
 
-  // Check if the diagram has content (devices or connections)
-  const hasContent = devices.length > 0 || connections.length > 0;
+  // Handler for closing the diagram
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      if (window.confirm('You have unsaved changes. Do you want to save before closing?')) {
+        handleSave().then(() => {
+          const lastPath = location.state?.lastPath || '/';
+          navigate(lastPath);
+        }).catch(() => {
+          // If save fails, don't navigate away
+        });
+      } else {
+        const lastPath = location.state?.lastPath || '/';
+        navigate(lastPath);
+      }
+    } else {
+      const lastPath = location.state?.lastPath || '/';
+      navigate(lastPath);
+    }
+  };
 
   // Function to get used interfaces for a device
   // Returns an array of interface names that are already used in connections
@@ -258,27 +298,29 @@ function NetworkDiagram() {
   // Handler for deleting a device and its connections
   const handleDeleteDevice = (deviceId) => {
     // Remove the device
-    setDevices(devices.filter(device => device.id !== deviceId));
+    deleteDevice(deviceId);
     
     // Remove any connections associated with this device
-    setConnections(connections.filter(conn => 
-      conn.sourceDeviceId !== deviceId && conn.targetDeviceId !== deviceId
-    ));
+    deleteConnectionsForDevice(deviceId);
     
     window.addNotification('Device deleted', 'success');
   };
 
   // Handler for changing the connection type
-  // Example: When user selects a new connection type, this will:
-  // 1. Update the selected connection type state
-  // 2. Update the type of all existing connections
-  const handleConnectionTypeChange = (type) => {
-    setSelectedConnectionType(type);
-    // Update existing connections if needed
-    setConnections(connections.map(conn => ({
-      ...conn,
-      type
-    })));
+  const onConnectionTypeSelect = (type) => {
+    handleConnectionTypeChange(type);
+    window.addNotification('Connection type updated', 'success');
+  };
+
+  // Handler for selecting a connection
+  const onConnectionSelect = (connectionId) => {
+    // If clicking the same connection, deselect it
+    if (selectedConnection === connectionId) {
+      handleConnectionClick(null);
+    } else {
+      handleConnectionClick(connectionId);
+      window.addNotification('Connection selected - Choose a connection type to change it', 'info');
+    }
   };
 
   // Handler for selecting an interface
@@ -308,30 +350,21 @@ function NetworkDiagram() {
   // Example: When user updates the control points of a connection, this will:
   // 1. Update the control points of the connection
   const handleControlPointsChange = (connectionId, newControlPoints) => {
-    setConnections(connections.map(conn => 
-      conn.id === connectionId 
-        ? { ...conn, controlPoints: newControlPoints }
-        : conn
-    ));
+    updateConnection(connectionId, { controlPoints: newControlPoints });
   };
 
   // Handler for dragging a device
   // Example: When user drags a device, this will:
   // 1. Update the position of the device
   const handleDeviceDrag = (deviceId, x, y) => {
-    setDevices(devices.map(device => 
-      device.id === deviceId ? { ...device, x, y } : device
-    ));
+    updateDevice(deviceId, { x, y });
   };
 
   // Handler for stopping the drag of a device
   // Example: When user stops dragging a device, this will:
   // 1. Update the position of the device
   const handleDeviceDragStop = (deviceId, x, y) => {
-    const updatedDevices = devices.map(device => 
-      device.id === deviceId ? { ...device, x, y } : device
-    );
-    setDevices(updatedDevices);
+    updateDevice(deviceId, { x, y });
   };
 
   // Function to calculate the position of an interface
@@ -400,13 +433,15 @@ function NetworkDiagram() {
           return (
             <React.Fragment key={connection.id}>
               <ConnectionLine
+                key={connection.id}
                 connection={connection}
                 sourceX={sourceCenter.x}
                 sourceY={sourceCenter.y}
                 targetX={targetCenter.x}
                 targetY={targetCenter.y}
                 type={connection.type || selectedConnectionType}
-                selected={false}
+                selected={selectedConnection === connection.id}
+                onClick={() => onConnectionSelect(connection.id)}
                 onControlPointsChange={(newPoints) => handleControlPointsChange(connection.id, newPoints)}
               />
             </React.Fragment>
@@ -474,7 +509,7 @@ function NetworkDiagram() {
       };
 
       // Add the new device to the diagram state
-      setDevices([...devices, newDevice]);
+      addDevice(newDevice);
       window.addNotification(`Added new ${item.type} device`, 'success');
     },
   });
@@ -506,18 +541,6 @@ function NetworkDiagram() {
     }
   }, [pendingConnection]);
 
-  const handleClose = async () => {
-    if (hasUnsavedChanges) {
-      const confirmClose = window.confirm('You have unsaved changes. Do you want to save before closing?');
-      if (confirmClose) {
-        await handleSave();
-      }
-    }
-    // Extract the directory path from the configFile path
-    const dirPath = configFile.substring(0, configFile.lastIndexOf('/'));
-    navigate('/', { state: { lastPath: dirPath } });
-  };
-
   // Render the NetworkDiagram component
   return (
     /* Main container component that wraps the entire diagram interface
@@ -528,7 +551,7 @@ function NetworkDiagram() {
           and select connection types (solid, dashed, etc.) */}
       <LeftMenu
         networkIcons={networkIcons}
-        onConnectionTypeChange={handleConnectionTypeChange}
+        onConnectionTypeChange={onConnectionTypeSelect}
         selectedConnectionType={selectedConnectionType}
       />
       <SideToolbar
@@ -629,7 +652,7 @@ function NetworkDiagram() {
                     targetInterface: selectedInterface,
                     type: selectedConnectionType
                   };
-                  setConnections(prevConnections => [...prevConnections, newConnection]);
+                  addConnection(newConnection);
                   setPendingConnection(null);
                   window.addNotification('Connection created successfully', 'success');
                 }

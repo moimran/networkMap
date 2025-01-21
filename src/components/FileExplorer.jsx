@@ -126,7 +126,7 @@ const Item = styled.div`
   }
 
   svg {
-    color: ${props => props.isDirectory ? '#2196f3' : (props.$isDarkMode ? '#aaaaaa' : '#666666')};
+    color: ${props => props.$isDirectory ? '#2196f3' : (props.$isDarkMode ? '#aaaaaa' : '#666666')};
     flex-shrink: 0;
   }
 `;
@@ -195,12 +195,12 @@ const ButtonGroup = styled.div`
 `;
 
 const ErrorMessage = styled.div`
-  background-color: ${props => props.$isDarkMode ? '#862222' : '#ffebee'};
-  color: ${props => props.$isDarkMode ? '#ffffff' : '#c62828'};
-  padding: 12px 16px;
+  color: ${props => props.$isDarkMode ? '#ff6b6b' : '#dc3545'};
+  padding: 10px;
   margin: 10px 0;
-  border-radius: 8px;
-  display: ${props => props.visible ? 'block' : 'none'};
+  border-radius: 4px;
+  background-color: ${props => props.$isDarkMode ? 'rgba(255, 107, 107, 0.1)' : 'rgba(220, 53, 69, 0.1)'};
+  display: ${props => props.$visible ? 'block' : 'none'};
   animation: slideIn 0.3s ease;
 
   @keyframes slideIn {
@@ -216,7 +216,7 @@ const ErrorMessage = styled.div`
 `;
 
 const LoadingSpinner = styled.div`
-  display: ${props => props.visible ? 'flex' : 'none'};
+  display: ${props => props.$visible ? 'flex' : 'none'};
   justify-content: center;
   align-items: center;
   padding: 40px;
@@ -390,7 +390,7 @@ function FileExplorer() {
     try {
       setError('');
       setIsLoading(true);
-      await axios.post('/api/files', {
+      await axios.post('/networkmap/api/files', {
         path: currentPath,
         name: newItemName.trim(),
         type: createType
@@ -410,7 +410,7 @@ function FileExplorer() {
     try {
       setError('');
       setIsLoading(true);
-      await axios.delete(`/api/files`, {
+      await axios.delete(`/networkmap/api/files`, {
         data: { path: pathUtils.join(currentPath, item.name) }
       });
       fetchItems(currentPath);
@@ -430,7 +430,7 @@ function FileExplorer() {
       setIsLoading(true);
       
       for (const itemName of selectedItems) {
-        await axios.delete(`/api/files`, {
+        await axios.delete(`/networkmap/api/files`, {
           data: { path: pathUtils.join(currentPath, itemName) }
         });
       }
@@ -488,11 +488,11 @@ function FileExplorer() {
 
       <PathBar $isDarkMode={isDarkMode}>{currentPath}</PathBar>
 
-      <ErrorMessage $isDarkMode={isDarkMode} visible={!!error}>
+      <ErrorMessage $isDarkMode={isDarkMode} $visible={!!error}>
         {error}
       </ErrorMessage>
 
-      <LoadingSpinner visible={isLoading} $isDarkMode={isDarkMode}>
+      <LoadingSpinner $visible={isLoading} $isDarkMode={isDarkMode}>
         <FaSpinner size={32} />
       </LoadingSpinner>
 
@@ -514,7 +514,7 @@ function FileExplorer() {
                 onClick={() => !isLoading && handleItemClick(item)}
                 $isDarkMode={isDarkMode}
                 $selected={selectedItems.has(item.name)}
-                isDirectory={item.isDirectory}
+                $isDirectory={item.isDirectory}
               >
                 <Checkbox
                   checked={selectedItems.has(item.name)}

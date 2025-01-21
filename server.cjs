@@ -9,6 +9,9 @@ const app = express();
 // Enable CORS
 app.use(cors());
 
+// Parse JSON bodies
+app.use(express.json());
+
 // Add request logging middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
@@ -149,7 +152,7 @@ app.get('/api/icons/general', async (req, res) => {
       }
 
       if (stats.isDirectory()) {
-        await fsPromises.rmdir(itemPath, { recursive: true });
+        await fsPromises.rm(itemPath, { recursive: true, force: true });
       } else {
         await fsPromises.unlink(itemPath);
       }

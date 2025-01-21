@@ -27,7 +27,7 @@ const DiagramArea = styled.div`
   padding: 20px;
 `;
 
-const AppContent = () => {
+const DiagramView = () => {
   const { isDarkMode } = useTheme();
   
   return (
@@ -45,13 +45,23 @@ const AppContent = () => {
   );
 };
 
+const FileExplorerView = () => {
+  const { isDarkMode } = useTheme();
+  
+  return (
+    <AppContainer $isDarkMode={isDarkMode}>
+      <FileExplorer />
+    </AppContainer>
+  );
+};
+
 function App() {
   return (
     <ThemeProvider>
       <Router basename="/networkmap">
         <Routes>
-          <Route path="/" element={<AppContent />} />
-          <Route path="/netdir" element={<FileExplorer />} />
+          <Route path="/" element={<FileExplorerView />} />
+          <Route path="/editor" element={<DiagramView />} />
         </Routes>
       </Router>
     </ThemeProvider>

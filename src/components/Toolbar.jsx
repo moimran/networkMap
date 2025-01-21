@@ -91,11 +91,12 @@ const RightIconsContainer = styled.div`
   margin-left: auto;
 `;
 
-const Toolbar = () => {
+const Toolbar = ({ children }) => {
   const { isDarkMode, toggleTheme } = useTheme();
 
   return (
     <ToolbarContainer $isDarkMode={isDarkMode}>      
+      {children}
       <RightIconsContainer>
         <IconButton 
           $isDarkMode={isDarkMode} 
@@ -105,7 +106,6 @@ const Toolbar = () => {
         >
           {isDarkMode ? <SunIcon /> : <MoonIcon />}
         </IconButton>
-
         <Notification />
       </RightIconsContainer>
     </ToolbarContainer>

@@ -17,6 +17,7 @@ import {
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // Browser-compatible path utilities
 const pathUtils = {
@@ -296,6 +297,8 @@ function formatDate(date) {
 }
 
 function FileExplorer() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentPath, setCurrentPath] = useState('');
   const [homePath, setHomePath] = useState('');
   const [items, setItems] = useState([]);
@@ -336,8 +339,11 @@ function FileExplorer() {
         const response = await axios.get('/networkmap/api/home-path');
         const path = response.data.path;
         setHomePath(path);
-        setCurrentPath(path);
-        await fetchItems(path);
+        
+        // If we have a lastPath from the editor, use that, otherwise use home path
+        const initialPath = location.state?.lastPath || path;
+        setCurrentPath(initialPath);
+        await fetchItems(initialPath);
       } catch (error) {
         console.error('Error fetching home path:', error.response?.data?.error || error.message);
         setError(error.response?.data?.error || error.message);
@@ -347,7 +353,7 @@ function FileExplorer() {
     };
 
     fetchInitialPath();
-  }, []);
+  }, [location.state?.lastPath]); // Re-run when lastPath changes
 
   useEffect(() => {
     fetchItems(currentPath);
@@ -367,6 +373,9 @@ function FileExplorer() {
     if (item.isDirectory) {
       setCurrentPath(pathUtils.join(currentPath, item.name));
       setSelectedItems(new Set());
+    } else if (item.name.endsWith('.json')) {
+      const filePath = pathUtils.join(currentPath, item.name);
+      navigate(`/editor?configFile=${encodeURIComponent(filePath)}`);
     }
   };
 

@@ -8,6 +8,8 @@ import ConnectionLine from './ConnectionLine';
 import SideToolbar from './SideToolbar';
 import LeftMenu from './LeftMenu';
 import { useTheme } from '../context/ThemeContext';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 // Styled component for the diagram container
 const DiagramContainer = styled.div`
@@ -60,8 +62,114 @@ const InterfaceLabel = styled.div`
   transition: color 0.3s ease;
 `;
 
+// Styled component for the save button
+const SaveButton = styled.button`
+  padding: 8px 16px;
+  background-color: ${props => props.disabled ? 
+    (props.$isDarkMode ? '#404040' : '#e0e0e0') : 
+    (props.$isDarkMode ? '#2196f3' : '#1976d2')};
+  color: ${props => props.disabled ? 
+    (props.$isDarkMode ? '#808080' : '#9e9e9e') : 
+    '#ffffff'};
+  border: none;
+  border-radius: 4px;
+  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+  margin-left: 16px;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background-color: ${props => props.$isDarkMode ? '#1976d2' : '#1565c0'};
+  }
+`;
+
+// Styled component for the toolbar buttons
+const ToolbarButton = styled.button`
+  padding: 8px 16px;
+  background-color: ${props => props.disabled ? 
+    (props.$isDarkMode ? '#404040' : '#e0e0e0') : 
+    (props.$isDarkMode ? '#2196f3' : '#1976d2')};
+  color: ${props => props.disabled ? 
+    (props.$isDarkMode ? '#808080' : '#9e9e9e') : 
+    '#ffffff'};
+  border: none;
+  border-radius: 4px;
+  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+  margin-left: 16px;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background-color: ${props => props.$isDarkMode ? '#1976d2' : '#1565c0'};
+  }
+`;
+
+const CloseButton = styled(ToolbarButton)`
+  background-color: ${props => props.$isDarkMode ? '#424242' : '#757575'};
+  &:hover:not(:disabled) {
+    background-color: ${props => props.$isDarkMode ? '#616161' : '#616161'};
+  }
+`;
+
+// Network device icons as inline SVGs for better portability
+const networkIcons = [
+  {
+    type: 'router',
+    icon: `data:image/svg+xml;base64,${btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+      </svg>
+    `)}`,
+    label: 'Router'
+  },
+  {
+    type: 'switch',
+    icon: `data:image/svg+xml;base64,${btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+        <path d="M7 10h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/>
+      </svg>
+    `)}`,
+    label: 'Switch'
+  },
+  {
+    type: 'firewall',
+    icon: `data:image/svg+xml;base64,${btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l6 2.67v5.15c0 4.29-2.78 8.31-6 9.67V3.18z"/>
+      </svg>
+    `)}`,
+    label: 'Firewall'
+  },
+  {
+    type: 'server',
+    icon: `data:image/svg+xml;base64,${btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20 2H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 6H5V5h14v3zm1 4H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm-1 6H5v-3h14v3z"/>
+      </svg>
+    `)}`,
+    label: 'Server'
+  },
+  {
+    type: 'cloud',
+    icon: `data:image/svg+xml;base64,${btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+      </svg>
+    `)}`,
+    label: 'Cloud'
+  },
+  {
+    type: 'laptop',
+    icon: `data:image/svg+xml;base64,${btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
+      </svg>
+    `)}`,
+    label: 'Laptop'
+  }
+];
+
 // NetworkDiagram component
-const NetworkDiagram = () => {
+function NetworkDiagram() {
   // Get the current theme from the context
   const { isDarkMode } = useTheme();
 
@@ -75,6 +183,57 @@ const NetworkDiagram = () => {
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedConnectionType, setSelectedConnectionType] = useState('solid');
+  const [isDragging, setIsDragging] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const configFile = new URLSearchParams(location.search).get('configFile');
+
+  // Load config from file
+  useEffect(() => {
+    const loadConfig = async () => {
+      if (!configFile) return;
+      
+      try {
+        const response = await axios.get('/networkmap/api/load-config', {
+          params: { path: configFile }
+        });
+        
+        if (response.data) {
+          setDevices(response.data.devices || []);
+          setConnections(response.data.connections || []);
+          setHasUnsavedChanges(false);
+        }
+      } catch (error) {
+        console.error('Error loading config:', error);
+      }
+    };
+
+    loadConfig();
+  }, [configFile]);
+
+  // Mark changes as unsaved when diagram is modified
+  useEffect(() => {
+    setHasUnsavedChanges(true);
+  }, [devices, connections]);
+
+  // Save config to file
+  const handleSave = async () => {
+    if (!configFile || !hasUnsavedChanges) return;
+
+    try {
+      await axios.post('/networkmap/api/save-config', {
+        path: configFile,
+        config: {
+          devices,
+          connections
+        }
+      });
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Error saving config:', error);
+    }
+  };
 
   // Check if the diagram has content (devices or connections)
   const hasContent = devices.length > 0 || connections.length > 0;
@@ -108,65 +267,6 @@ const NetworkDiagram = () => {
     
     window.addNotification('Device deleted', 'success');
   };
-
-  // Network device icons as inline SVGs for better portability
-  const networkIcons = [
-    {
-      type: 'router',
-      icon: `data:image/svg+xml;base64,${btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-        </svg>
-      `)}`,
-      label: 'Router'
-    },
-    {
-      type: 'switch',
-      icon: `data:image/svg+xml;base64,${btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
-          <path d="M7 10h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/>
-        </svg>
-      `)}`,
-      label: 'Switch'
-    },
-    {
-      type: 'firewall',
-      icon: `data:image/svg+xml;base64,${btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l6 2.67v5.15c0 4.29-2.78 8.31-6 9.67V3.18z"/>
-        </svg>
-      `)}`,
-      label: 'Firewall'
-    },
-    {
-      type: 'server',
-      icon: `data:image/svg+xml;base64,${btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 6H5V5h14v3zm1 4H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm-1 6H5v-3h14v3z"/>
-        </svg>
-      `)}`,
-      label: 'Server'
-    },
-    {
-      type: 'cloud',
-      icon: `data:image/svg+xml;base64,${btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
-        </svg>
-      `)}`,
-      label: 'Cloud'
-    },
-    {
-      type: 'laptop',
-      icon: `data:image/svg+xml;base64,${btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
-        </svg>
-      `)}`,
-      label: 'Laptop'
-    }
-  ];
 
   // Handler for changing the connection type
   // Example: When user selects a new connection type, this will:
@@ -406,6 +506,18 @@ const NetworkDiagram = () => {
     }
   }, [pendingConnection]);
 
+  const handleClose = async () => {
+    if (hasUnsavedChanges) {
+      const confirmClose = window.confirm('You have unsaved changes. Do you want to save before closing?');
+      if (confirmClose) {
+        await handleSave();
+      }
+    }
+    // Extract the directory path from the configFile path
+    const dirPath = configFile.substring(0, configFile.lastIndexOf('/'));
+    navigate('/', { state: { lastPath: dirPath } });
+  };
+
   // Render the NetworkDiagram component
   return (
     /* Main container component that wraps the entire diagram interface
@@ -419,8 +531,26 @@ const NetworkDiagram = () => {
         onConnectionTypeChange={handleConnectionTypeChange}
         selectedConnectionType={selectedConnectionType}
       />
-      {/* Toolbar component with diagram manipulation actions */}
-      <Toolbar />
+      <SideToolbar
+        selectedConnectionType={selectedConnectionType}
+      />
+      <Toolbar>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <SaveButton
+            onClick={handleSave}
+            disabled={!hasUnsavedChanges || !configFile}
+            $isDarkMode={isDarkMode}
+          >
+            Save
+          </SaveButton>
+          <CloseButton
+            onClick={handleClose}
+            $isDarkMode={isDarkMode}
+          >
+            Close Editor
+          </CloseButton>
+        </div>
+      </Toolbar>
       {/* Main diagram container where devices and connections are rendered
           Example: This is the drop target for new devices when dragged from LeftMenu */}
       <DiagramContainer
@@ -518,9 +648,8 @@ const NetworkDiagram = () => {
         )}
       </DiagramContainer>
       {/* Side toolbar component for additional tools and options */}
-      <SideToolbar $isDarkMode={isDarkMode} />
     </MainContainer>
   );
-};
+}
 
 export default NetworkDiagram;

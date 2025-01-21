@@ -165,6 +165,73 @@ app.get('/api/icons/general', async (req, res) => {
   });
 });
 
+// Load config from file
+['/api/load-config', '/networkmap/api/load-config'].forEach(routePath => {
+  app.get(routePath, async (req, res) => {
+    try {
+      const { path } = req.query;
+      
+      if (!path) {
+        return res.status(400).json({ error: 'Path is required' });
+      }
+
+      if (!isSafePath(path)) {
+        return res.status(403).json({ error: 'Access to this path is not allowed' });
+      }
+
+      const stats = await safeGetStats(path);
+      if (!stats) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      if (!stats.isFile()) {
+        return res.status(400).json({ error: 'Path is not a file' });
+      }
+
+      const content = await fsPromises.readFile(path, 'utf-8');
+      let config = {};
+      
+      try {
+        config = JSON.parse(content);
+      } catch (e) {
+        // If file is empty or invalid JSON, return empty config
+        config = { devices: [], connections: [] };
+      }
+
+      return res.json(config);
+    } catch (error) {
+      console.error('Error loading config:', error);
+      return res.status(500).json({ error: 'Failed to load config' });
+    }
+  });
+});
+
+// Save config to file
+['/api/save-config', '/networkmap/api/save-config'].forEach(routePath => {
+  app.post(routePath, async (req, res) => {
+    try {
+      const { path, config } = req.body;
+      
+      if (!path || !config) {
+        return res.status(400).json({ error: 'Path and config are required' });
+      }
+
+      if (!isSafePath(path)) {
+        return res.status(403).json({ error: 'Access to this path is not allowed' });
+      }
+
+      // Ensure config is valid JSON
+      const configString = JSON.stringify(config, null, 2);
+      await fsPromises.writeFile(path, configString, 'utf-8');
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Error saving config:', error);
+      return res.status(500).json({ error: 'Failed to save config' });
+    }
+  });
+});
+
 // Helper functions
 const isSafePath = (requestedPath) => {
   const homePath = os.homedir();

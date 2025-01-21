@@ -173,27 +173,26 @@ const networkIcons = [
 
 // NetworkDiagram component
 function NetworkDiagram() {
-  // Get the current theme from the context
+  // Theme and routing hooks
   const { isDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // URL params
   const configFile = new URLSearchParams(location.search).get('configFile');
 
-  // Extract the directory path from the configFile path when component mounts
+  // All useState hooks grouped together
   const [returnPath, setReturnPath] = useState('');
-  
-  useEffect(() => {
-    if (configFile) {
-      // Get the parent directory path
-      const dirPath = configFile.substring(0, configFile.lastIndexOf('/'));
-      setReturnPath(dirPath);
-    }
-  }, [configFile]);
-
-  // State for unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [connections, setConnections] = useState([]);
+  const [pendingConnection, setPendingConnection] = useState(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Use custom hooks for devices and connections
+  // Custom hooks after useState
   const {
     devices,
     setDevices,
@@ -204,28 +203,28 @@ function NetworkDiagram() {
   } = useNetworkDevices(setHasUnsavedChanges);
 
   const {
-    connections,
-    setConnections,
     selectedConnection,
     selectedConnectionType,
+    selectedColors,
     addConnection,
     updateConnection,
     deleteConnection,
     handleConnectionTypeChange,
+    handleConnectionColorsChange,
     handleConnectionClick,
     deleteConnectionsForDevice
-  } = useConnections(setHasUnsavedChanges);
+  } = useConnections(setHasUnsavedChanges, connections, setConnections);
 
-  // Use config hook for loading/saving
+  // Config hook after other custom hooks
   const { saveConfig } = useNetworkConfig(configFile, setDevices, setConnections);
 
-  // Preserve existing state
-  const [pendingConnection, setPendingConnection] = useState(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
-  const [selectedDevice, setSelectedDevice] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
+  // useEffect hooks at the end
+  useEffect(() => {
+    if (configFile) {
+      const dirPath = configFile.substring(0, configFile.lastIndexOf('/'));
+      setReturnPath(dirPath);
+    }
+  }, [configFile]);
 
   // Load config from file
   useEffect(() => {
@@ -561,6 +560,9 @@ function NetworkDiagram() {
         networkIcons={networkIcons}
         onConnectionTypeChange={onConnectionTypeSelect}
         selectedConnectionType={selectedConnectionType}
+        selectedColors={selectedColors}
+        onConnectionColorsChange={handleConnectionColorsChange}
+        isDarkMode={isDarkMode}
       />
       <SideToolbar
         selectedConnectionType={selectedConnectionType}

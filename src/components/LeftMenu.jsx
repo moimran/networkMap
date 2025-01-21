@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useDrag } from 'react-dnd';
-import { useTheme } from '../context/ThemeContext';
+import { useDrag } from "react-dnd";
+import { useTheme } from "../context/ThemeContext";
 
 const MenuContainer = styled.div`
   position: fixed;
@@ -112,6 +112,107 @@ const ConnectionItem = styled.div`
   }
 `;
 
+const ColorGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0 16px;
+`;
+
+const ColorBox = styled.div`
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: ${props => props.$color};
+  border: 2px solid ${props => props.$selected ? '#000' : 'transparent'};
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+`;
+
+const SubTitle = styled.h4`
+  margin: 16px 0 8px;
+  padding: 0 16px;
+  color: ${props => props.$isDarkMode ? '#fff' : '#333'};
+`;
+
+const ConnectionPreview = styled.div`
+  width: 40px;
+  height: 30px;
+  position: relative;
+  margin-right: 8px;
+
+  &:before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    background-color: ${props => props.$isDarkMode ? '#fff' : '#333'};
+    ${props => {
+      switch(props.$type) {
+        case 'dashed':
+          return 'border-top: 2px dashed currentColor;background: none;';
+        case 'dotted':
+          return 'border-top: 2px dotted currentColor;background: none;';
+        case 'curved':
+          return `
+            background: none;
+            &:before {
+              content: '';
+              position: absolute;
+              top: -15px;
+              left: 0;
+              right: 0;
+              height: 30px;
+              border: 2px solid currentColor;
+              border-color: transparent transparent currentColor transparent;
+              border-radius: 0 0 20px 20px;
+            }
+          `;
+        case 'angled':
+          return `
+            background: none;
+            &:before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 15px;
+              border-left: 2px solid currentColor;
+              border-bottom: 2px solid currentColor;
+            }
+          `;
+        default:
+          return '';
+      }
+    }}
+  }
+`;
+
+const connectionTypes = [
+  { id: 'solid', label: 'Solid Line' },
+  { id: 'dashed', label: 'Dashed Line' },
+  { id: 'dotted', label: 'Dotted Line' },
+  { id: 'curved', label: 'Curved Line' },
+  { id: 'angled', label: 'Angled Line' }
+];
+
+const connectionColors = [
+  '#666666', // Gray
+  '#4CAF50', // Green
+  '#2196F3', // Blue
+  '#FFC107', // Yellow
+  '#9C27B0', // Purple
+  '#F44336'  // Red
+];
+
 const DraggableIcon = ({ type, icon, label, category }) => {
   const { isDarkMode } = useTheme();
   const [{ isDragging }, drag] = useDrag({
@@ -132,12 +233,17 @@ const DraggableIcon = ({ type, icon, label, category }) => {
   );
 };
 
-const LeftMenu = ({ networkIcons, onConnectionTypeChange, selectedConnectionType }) => {
-  const { isDarkMode } = useTheme();
+const LeftMenu = ({
+  onConnectionTypeChange,
+  selectedConnectionType,
+  selectedColors,
+  onConnectionColorsChange,
+  isDarkMode
+}) => {
   const [openSections, setOpenSections] = useState({
     network: false,
     general: false,
-    connections: false
+    connections: true
   });
 
   const [icons, setIcons] = useState({
@@ -147,88 +253,55 @@ const LeftMenu = ({ networkIcons, onConnectionTypeChange, selectedConnectionType
 
   useEffect(() => {
     // Load network icons
-    console.log('Fetching network icons...');
+    console.log('Loading network icons...');
     fetch('/networkmap/api/icons/network')
       .then(async response => {
-        console.log('Network icons response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        const text = await response.text();
-        console.log('Raw response text:', text);
-        return { response, text };
-      })
-      .then(({ response, text }) => {
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = JSON.parse(text);
-        console.log('Received network icons data:', data);
+        return response.json();
+      })
+      .then(data => {
+        console.log('Received network icons:', data);
         const networkIcons = data.map(icon => ({
           type: icon.name.replace('.svg', ''),
           icon: icon.path,
           label: icon.name.replace('.svg', '').split('-').map(word => 
             word.charAt(0).toUpperCase() + word.slice(1)
-          ).join(' ')
+          ).join(' '),
+          category: 'network'
         }));
-        console.log('Processed network icons:', networkIcons);
         setIcons(prev => ({ ...prev, network: networkIcons }));
       })
       .catch(error => {
         console.error('Error loading network icons:', error);
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack
-        });
       });
 
     // Load general icons
-    console.log('Fetching general icons...');
+    console.log('Loading general icons...');
     fetch('/networkmap/api/icons/general')
       .then(async response => {
-        console.log('General icons response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        const text = await response.text();
-        console.log('Raw response text:', text);
-        return { response, text };
-      })
-      .then(({ response, text }) => {
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const data = JSON.parse(text);
-        console.log('Received general icons data:', data);
+        return response.json();
+      })
+      .then(data => {
+        console.log('Received general icons:', data);
         const generalIcons = data.map(icon => ({
           type: icon.name.replace('.svg', ''),
           icon: icon.path,
           label: icon.name.replace('.svg', '').split('-').map(word => 
             word.charAt(0).toUpperCase() + word.slice(1)
-          ).join(' ')
+          ).join(' '),
+          category: 'general'
         }));
-        console.log('Processed general icons:', generalIcons);
         setIcons(prev => ({ ...prev, general: generalIcons }));
       })
       .catch(error => {
         console.error('Error loading general icons:', error);
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack
-        });
       });
   }, []);
-
-  const connectionTypes = [
-    { id: 'solid', label: 'Solid Line', color: '#666', $dashed: false },
-    { id: 'dashed', label: 'Dashed Line', color: '#666', $dashed: true },
-    { id: 'blue', label: 'Blue Line', color: '#2196f3', $dashed: false },
-    { id: 'red', label: 'Red Line', color: '#f44336', $dashed: false },
-    { id: 'green', label: 'Green Line', color: '#4caf50', $dashed: false },
-    { id: 'orange', label: 'Orange Line', color: '#ff9800', $dashed: false }
-  ];
 
   const toggleSection = (section) => {
     setOpenSections(prev => ({
@@ -269,23 +342,42 @@ const LeftMenu = ({ networkIcons, onConnectionTypeChange, selectedConnectionType
             $isDarkMode={isDarkMode}
             onClick={() => toggleSection('connections')}
           >
-            Connection Types
+            Connection Settings
             <span>{openSections.connections ? '▼' : '▶'}</span>
           </SectionHeader>
           <SectionContent $isOpen={openSections.connections} $isDarkMode={isDarkMode}>
-            {connectionTypes.map((conn) => (
-              <ConnectionItem
-                key={conn.id}
-                selected={selectedConnectionType === conn.id}
-                onClick={() => onConnectionTypeChange(conn.id)}
-                color={conn.color}
-                $dashed={conn.$dashed}
-                $isDarkMode={isDarkMode}
-              >
-                <div className="preview" />
-                <div className="label">{conn.label}</div>
-              </ConnectionItem>
-            ))}
+            <div>
+              <SubTitle $isDarkMode={isDarkMode}>Connection Types</SubTitle>
+              {connectionTypes.map((type) => (
+                <ConnectionItem
+                  key={type.id}
+                  $selected={selectedConnectionType === type.id}
+                  $isDarkMode={isDarkMode}
+                  onClick={() => onConnectionTypeChange(type.id)}
+                >
+                  <ConnectionPreview $type={type.id} $isDarkMode={isDarkMode} />
+                  <span>{type.label}</span>
+                </ConnectionItem>
+              ))}
+            </div>
+            <div>
+              <SubTitle $isDarkMode={isDarkMode}>Connection Colors</SubTitle>
+              <ColorGrid>
+                {connectionColors.map(color => (
+                  <ColorBox
+                    key={color}
+                    $color={color}
+                    $selected={selectedColors.includes(color)}
+                    onClick={() => {
+                      const newColors = selectedColors.includes(color)
+                        ? selectedColors.filter(c => c !== color)
+                        : [...selectedColors, color];
+                      onConnectionColorsChange(newColors);
+                    }}
+                  />
+                ))}
+              </ColorGrid>
+            </div>
           </SectionContent>
         </Section>
       </ScrollContainer>

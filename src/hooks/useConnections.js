@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
-export const useConnections = (setHasUnsavedChanges) => {
-  const [connections, setConnections] = useState([]);
+export const useConnections = (setHasUnsavedChanges, connections, setConnections) => {
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [selectedConnectionType, setSelectedConnectionType] = useState('solid');
+  const [selectedColors, setSelectedColors] = useState(['#666']); // Default color
 
   const addConnection = (newConnection) => {
-    setConnections(prev => [...prev, newConnection]);
+    setConnections(prev => [...prev, { ...newConnection, colors: selectedColors }]);
     setHasUnsavedChanges(true);
   };
 
@@ -30,16 +30,29 @@ export const useConnections = (setHasUnsavedChanges) => {
     }
   };
 
+  const handleConnectionColorsChange = (colors) => {
+    setSelectedColors(colors);
+    if (selectedConnection) {
+      updateConnection(selectedConnection, { colors });
+      window.addNotification('Connection colors updated', 'success');
+    }
+  };
+
   const handleConnectionClick = (connectionId) => {
     if (selectedConnection === connectionId) {
       setSelectedConnection(null);
     } else {
       setSelectedConnection(connectionId);
       const connection = connections.find(conn => conn.id === connectionId);
-      if (connection && connection.type) {
-        setSelectedConnectionType(connection.type);
+      if (connection) {
+        if (connection.type) {
+          setSelectedConnectionType(connection.type);
+        }
+        if (connection.colors) {
+          setSelectedColors(connection.colors);
+        }
       }
-      window.addNotification('Connection selected - Choose a connection type to change it', 'info');
+      window.addNotification('Connection selected - Choose connection type or colors to change it', 'info');
     }
   };
 
@@ -52,13 +65,14 @@ export const useConnections = (setHasUnsavedChanges) => {
 
   return {
     connections,
-    setConnections,
     selectedConnection,
     selectedConnectionType,
+    selectedColors,
     addConnection,
     updateConnection,
     deleteConnection,
     handleConnectionTypeChange,
+    handleConnectionColorsChange,
     handleConnectionClick,
     deleteConnectionsForDevice
   };

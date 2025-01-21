@@ -32,7 +32,7 @@ const StyledPath = styled.path`
   stroke: ${props => {
     if (props.$selected) return '#4CAF50';
     if (props.$isHovered) return '#2196F3';
-    return props.$isDarkMode ? '#666' : '#666';
+    return props.$color || (props.$isDarkMode ? '#666' : '#666');
   }};
   stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
   cursor: pointer;
@@ -51,7 +51,38 @@ const ConnectionGroup = styled(StyledGroup)`
   }
 `;
 
-const ConnectionLine = ({ 
+const getStrokeDashArray = (type) => {
+  switch (type) {
+    case 'dashed':
+      return '8,8';
+    case 'dotted':
+      return '2,4';
+    default:
+      return 'none';
+  }
+};
+
+const getPathData = (type, points) => {
+  const { source, target } = points;
+  
+  switch (type) {
+    case 'curved':
+      const midX = (source.x + target.x) / 2;
+      const midY = (source.y + target.y) / 2;
+      const controlY = midY - 50; // Curve height
+      return `M ${source.x} ${source.y} Q ${midX} ${controlY} ${target.x} ${target.y}`;
+    
+    case 'angled':
+      const cornerX = source.x;
+      const cornerY = target.y;
+      return `M ${source.x} ${source.y} L ${cornerX} ${cornerY} L ${target.x} ${target.y}`;
+    
+    default: // solid, dashed, dotted
+      return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+  }
+};
+
+const ConnectionLine = ({
   connection,
   sourceX,
   sourceY,
@@ -69,6 +100,7 @@ const ConnectionLine = ({
   const [activePointIndex, setActivePointIndex] = useState(null);
   const [iconSize, setIconSize] = useState(0);
   const svgRef = useRef(null);
+  const colors = connection?.colors || ['#666'];
 
   // Calculate icon size from SVG element
   useEffect(() => {
@@ -216,39 +248,35 @@ const ConnectionLine = ({
     };
   };
 
-  const points = calculateConnectionPoints();
-
-  // Get stroke properties based on type
-  const getStrokeProperties = () => {
-    switch (type) {
-      case 'dashed':
-        return { strokeDasharray: '5,5' };
-      case 'dotted':
-        return { strokeDasharray: '1,3' };
-      default:
-        return {};
-    }
-  };
-
-  const strokeProps = getStrokeProperties();
-
   // Calculate the angle for the labels
   const getLabelAngle = () => {
     const dx = targetX - sourceX;
     const dy = targetY - sourceY;
-    return Math.atan2(dy, dx) * (180 / Math.PI);
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    return angle > 90 || angle < -90 ? angle + 180 : angle;
   };
 
-  const angle = getLabelAngle();
-  const labelAngle = angle > 90 || angle < -90 ? angle + 180 : angle;
+  const points = calculateConnectionPoints();
 
   return (
-    <ConnectionGroup 
+    <ConnectionGroup
       ref={svgRef}
+      onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={onClick}
     >
+      {colors.map((color, index) => (
+        <StyledPath
+          key={`${connection.id}-${index}`}
+          d={getPathData(type, points)}
+          strokeDasharray={getStrokeDashArray(type)}
+          $isDarkMode={isDarkMode}
+          $selected={selected}
+          $isHovered={isHovered}
+          $color={color}
+          style={{ opacity: 1 / colors.length }}
+        />
+      ))}
       {/* Source bulb to label or target bulb */}
       {showInterfaceLabels ? (
         <StyledPath
@@ -257,7 +285,6 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
-          {...strokeProps}
         />
       ) : (
         <StyledPath
@@ -266,7 +293,6 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
-          {...strokeProps}
         />
       )}
 
@@ -278,7 +304,6 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
-          {...strokeProps}
         />
       )}
 
@@ -290,20 +315,19 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
-          {...strokeProps}
         />
       )}
 
       {/* Labels with egg-shaped containers */}
       {showInterfaceLabels && connection.sourceInterface && (
-        <StyledGroup transform={`translate(${points.labels.source.x}, ${points.labels.source.y}) rotate(${labelAngle})`}>
+        <StyledGroup transform={`translate(${points.labels.source.x}, ${points.labels.source.y}) rotate(${getLabelAngle()})`}>
           <LabelContainer $isDarkMode={isDarkMode} d={points.labels.source.path} />
           <InterfaceLabel $isDarkMode={isDarkMode}>{connection.sourceInterface.name}</InterfaceLabel>
         </StyledGroup>
       )}
 
       {showInterfaceLabels && connection.targetInterface && (
-        <StyledGroup transform={`translate(${points.labels.target.x}, ${points.labels.target.y}) rotate(${labelAngle})`}>
+        <StyledGroup transform={`translate(${points.labels.target.x}, ${points.labels.target.y}) rotate(${getLabelAngle()})`}>
           <LabelContainer $isDarkMode={isDarkMode} d={points.labels.target.path} />
           <InterfaceLabel $isDarkMode={isDarkMode}>{connection.targetInterface.name}</InterfaceLabel>
         </StyledGroup>

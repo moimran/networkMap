@@ -179,6 +179,17 @@ function NetworkDiagram() {
   const navigate = useNavigate();
   const configFile = new URLSearchParams(location.search).get('configFile');
 
+  // Extract the directory path from the configFile path when component mounts
+  const [returnPath, setReturnPath] = useState('');
+  
+  useEffect(() => {
+    if (configFile) {
+      // Get the parent directory path
+      const dirPath = configFile.substring(0, configFile.lastIndexOf('/'));
+      setReturnPath(dirPath);
+    }
+  }, [configFile]);
+
   // State for unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -263,18 +274,15 @@ function NetworkDiagram() {
     if (hasUnsavedChanges) {
       if (window.confirm('You have unsaved changes. Do you want to save before closing?')) {
         handleSave().then(() => {
-          const lastPath = location.state?.lastPath || '/';
-          navigate(lastPath);
+          navigate('/', { state: { lastPath: returnPath } });
         }).catch(() => {
           // If save fails, don't navigate away
         });
       } else {
-        const lastPath = location.state?.lastPath || '/';
-        navigate(lastPath);
+        navigate('/', { state: { lastPath: returnPath } });
       }
     } else {
-      const lastPath = location.state?.lastPath || '/';
-      navigate(lastPath);
+      navigate('/', { state: { lastPath: returnPath } });
     }
   };
 

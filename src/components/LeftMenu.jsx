@@ -135,7 +135,7 @@ const DraggableIcon = ({ type, icon, label, category }) => {
 const LeftMenu = ({ networkIcons, onConnectionTypeChange, selectedConnectionType }) => {
   const { isDarkMode } = useTheme();
   const [openSections, setOpenSections] = useState({
-    network: true,
+    network: false,
     general: false,
     connections: false
   });

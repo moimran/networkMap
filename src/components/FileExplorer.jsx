@@ -297,6 +297,7 @@ function formatDate(date) {
 }
 
 function FileExplorer() {
+  const { isDarkMode } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [currentPath, setCurrentPath] = useState('');
@@ -308,7 +309,35 @@ function FileExplorer() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Set());
-  const { isDarkMode } = useTheme();
+
+  useEffect(() => {
+    const fetchInitialPath = async () => {
+      try {
+        setError('');
+        setIsLoading(true);
+        const response = await axios.get('/networkmap/api/home-path');
+        const path = response.data.path;
+        setHomePath(path);
+        
+        // If we have a lastPath from the editor, use that, otherwise use home path
+        const initialPath = location.state?.lastPath || path;
+        setCurrentPath(initialPath);
+      } catch (error) {
+        console.error('Error fetching home path:', error.response?.data?.error || error.message);
+        setError(error.response?.data?.error || error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInitialPath();
+  }, [location.state?.lastPath]); // Re-run when lastPath changes
+
+  useEffect(() => {
+    if (currentPath) {
+      fetchItems(currentPath);
+    }
+  }, [currentPath]);
 
   const fetchItems = async (path) => {
     if (!path) return;
@@ -330,34 +359,6 @@ function FileExplorer() {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    const fetchInitialPath = async () => {
-      try {
-        setError('');
-        setIsLoading(true);
-        const response = await axios.get('/networkmap/api/home-path');
-        const path = response.data.path;
-        setHomePath(path);
-        
-        // If we have a lastPath from the editor, use that, otherwise use home path
-        const initialPath = location.state?.lastPath || path;
-        setCurrentPath(initialPath);
-        await fetchItems(initialPath);
-      } catch (error) {
-        console.error('Error fetching home path:', error.response?.data?.error || error.message);
-        setError(error.response?.data?.error || error.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchInitialPath();
-  }, [location.state?.lastPath]); // Re-run when lastPath changes
-
-  useEffect(() => {
-    fetchItems(currentPath);
-  }, [currentPath]);
 
   const handleBack = () => {
     if (currentPath === homePath) return;

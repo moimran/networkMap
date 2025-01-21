@@ -1,0 +1,25 @@
+{
+  "deviceType": "switch",
+  "interfaces": [
+    {
+      "name": "FastEthernet1/0/1",
+      "type": "ethernet",
+      "position": "left"
+    },
+    {
+      "name": "FastEthernet1/0/2",
+      "type": "ethernet",
+      "position": "right"
+    },
+    {
+      "name": "FastEthernet1/0/3",
+      "type": "ethernet",
+      "position": "top"
+    },
+    {
+      "name": "FastEthernet1/0/4",
+      "type": "ethernet",
+      "position": "bottom"
+    }
+  ]
+}

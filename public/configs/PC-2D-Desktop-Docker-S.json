@@ -1,0 +1,16 @@
+{
+    "deviceType": "pc",
+    "interfaces": [
+      {
+        "name": "eth0",
+        "type": "ethernet",
+        "position": "left"
+      },
+      {
+        "name": "eth1",
+        "type": "ethernet",
+        "position": "right"
+      }
+    ]
+  }
+  

@@ -1,0 +1,25 @@
+{
+  "deviceType": "router",
+  "interfaces": [
+    {
+      "name": "GigabitEthernet0/0",
+      "type": "ethernet",
+      "position": "left"
+    },
+    {
+      "name": "GigabitEthernet0/1",
+      "type": "ethernet",
+      "position": "right"
+    },
+    {
+      "name": "Serial0/0",
+      "type": "serial",
+      "position": "top"
+    },
+    {
+      "name": "Serial0/1",
+      "type": "serial",
+      "position": "bottom"
+    }
+  ]
+}

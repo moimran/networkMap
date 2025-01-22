@@ -14,7 +14,14 @@ export const useNetworkConfig = (configFile, setDevices, setConnections) => {
       
       const config = response.data;
       if (config.devices) setDevices(config.devices);
-      if (config.connections) setConnections(config.connections);
+      if (config.connections) {
+        // Ensure each connection has a color property
+        const connectionsWithColor = config.connections.map(conn => ({
+          ...conn,
+          color: conn.color || '#666' // Set default color if not present
+        }));
+        setConnections(connectionsWithColor);
+      }
     } catch (error) {
       console.error('Error loading config:', error);
       throw error;

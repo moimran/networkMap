@@ -236,8 +236,8 @@ const DraggableIcon = ({ type, icon, label, category }) => {
 const LeftMenu = ({
   onConnectionTypeChange,
   selectedConnectionType,
-  selectedColors,
-  onConnectionColorsChange,
+  selectedColor,
+  onConnectionColorChange,
   isDarkMode
 }) => {
   const [openSections, setOpenSections] = useState({
@@ -367,12 +367,11 @@ const LeftMenu = ({
                   <ColorBox
                     key={color}
                     $color={color}
-                    $selected={selectedColors.includes(color)}
+                    $selected={selectedColor === color}
                     onClick={() => {
-                      const newColors = selectedColors.includes(color)
-                        ? selectedColors.filter(c => c !== color)
-                        : [...selectedColors, color];
-                      onConnectionColorsChange(newColors);
+                      // If clicking the already selected color, deselect it
+                      const newColor = selectedColor === color ? null : color;
+                      onConnectionColorChange(newColor);
                     }}
                   />
                 ))}

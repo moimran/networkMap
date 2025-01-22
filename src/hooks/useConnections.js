@@ -1,19 +1,28 @@
 import { useState } from 'react';
 
 export const useConnections = (setHasUnsavedChanges, connections, setConnections) => {
-  const [selectedConnection, setSelectedConnection] = useState(null);
+  const [selectedConnectionId, setSelectedConnectionId] = useState(null);
   const [selectedConnectionType, setSelectedConnectionType] = useState('solid');
-  const [selectedColors, setSelectedColors] = useState(['#666']); // Default color
+  // Initialize with null (will use default color)
+  const [selectedColor, setSelectedColor] = useState(null);
 
   const addConnection = (newConnection) => {
-    setConnections(prev => [...prev, { ...newConnection, colors: selectedColors }]);
+    // New connections use the default color
+    setConnections(prev => [...prev, { ...newConnection, color: '#666' }]);
     setHasUnsavedChanges(true);
   };
 
   const updateConnection = (connectionId, updates) => {
-    setConnections(connections.map(conn => 
-      conn.id === connectionId ? { ...conn, ...updates } : conn
-    ));
+    console.log('updateConnection - connectionId:', connectionId, 'updates:', updates);
+    setConnections(prevConnections => {
+      const newConnections = prevConnections.map(conn => 
+        conn.id === connectionId 
+          ? { ...conn, ...updates }
+          : conn
+      );
+      console.log('updateConnection - New connections state:', newConnections);
+      return newConnections;
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -24,37 +33,60 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
 
   const handleConnectionTypeChange = (type) => {
     setSelectedConnectionType(type);
-    if (selectedConnection) {
-      updateConnection(selectedConnection, { type });
+    if (selectedConnectionId) {
+      updateConnection(selectedConnectionId, { type });
       window.addNotification('Connection type updated', 'success');
     }
   };
 
-  const handleConnectionColorsChange = (colors) => {
-    setSelectedColors(colors);
-    if (selectedConnection) {
-      updateConnection(selectedConnection, { colors });
-      window.addNotification('Connection colors updated', 'success');
+  const handleConnectionColorChange = (color) => {
+    console.log('handleConnectionColorChange - New color:', color);
+    console.log('handleConnectionColorChange - Selected connection:', selectedConnectionId);
+    
+    // Update the selected color
+    setSelectedColor(color);
+    
+    // Update the connection's color if a connection is selected
+    if (selectedConnectionId) {
+      setConnections(prevConnections => {
+        const newConnections = prevConnections.map(conn => {
+          if (conn.id === selectedConnectionId) {
+            // Only update the selected connection's color
+            return { ...conn, color: color || '#666' };
+          }
+          return conn;
+        });
+        console.log('New connections state:', newConnections);
+        return newConnections;
+      });
+      setHasUnsavedChanges(true);
+      window.addNotification('Connection color updated', 'success');
     }
   };
 
   const handleConnectionClick = (connectionId) => {
-    if (selectedConnection !== null && selectedConnection === connectionId) {
-      setSelectedConnection(null);
+    if (selectedConnectionId === connectionId) {
+      // If clicking the same connection, deselect it
+      setSelectedConnectionId(null);
+      setSelectedColor(null);
       window.addNotification('Connection unselected', 'info');
     } else if (connectionId === null) {
-      setSelectedConnection(null);
+      // If explicitly clearing selection
+      setSelectedConnectionId(null);
+      setSelectedColor(null);
     } else {
-      setSelectedConnection(connectionId);
+      // Selecting a new connection
+      setSelectedConnectionId(connectionId);
       const connection = connections.find(conn => conn.id === connectionId);
       if (connection) {
         if (connection.type) {
           setSelectedConnectionType(connection.type);
         }
-        if (connection.colors) {
-          setSelectedColors(connection.colors);
+        if (connection.color) {
+          setSelectedColor(connection.color);
         }
       }
+      window.addNotification('Connection selected - Choose a color to change it', 'info');
     }
   };
 
@@ -67,14 +99,14 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
 
   return {
     connections,
-    selectedConnection,
+    selectedConnectionId,
     selectedConnectionType,
-    selectedColors,
+    selectedColor,
     addConnection,
     updateConnection,
     deleteConnection,
     handleConnectionTypeChange,
-    handleConnectionColorsChange,
+    handleConnectionColorChange,
     handleConnectionClick,
     deleteConnectionsForDevice
   };

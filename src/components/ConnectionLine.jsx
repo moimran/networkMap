@@ -31,35 +31,18 @@ const StyledGroup = styled.g`
 `;
 
 const StyledPath = styled.path`
-  stroke: ${props => {
-    if (props.$selected) return '#4CAF50';
-    if (props.$isHovered) return '#2196F3';
-    return props.$color || (props.$isDarkMode ? '#666' : '#999');
-  }};
+  stroke: ${props => props.$color || '#666'};
   stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
-  fill: none;
-  transition: all 0.2s ease-in-out;
+  stroke-dasharray: ${props => props.strokeDasharray || 'none'};
+  fill: ${props => props.fill || 'none'};
+  transition: all 0.2s ease;
   cursor: pointer;
   filter: ${props => props.$selected ? 
     'drop-shadow(0 0 4px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 8px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 12px rgba(0, 0, 0, 0.2))' :
-    'drop-shadow(0 0 1px rgba(0, 0, 0, 0.2))'
+    props.$isHovered ? 
+    'drop-shadow(0 0 4px rgba(0, 0, 0, 0.2))' : 
+    'none'
   };
-
-  &:hover {
-    stroke: ${props => props.$isDarkMode ? '#fff' : '#333'};
-    stroke-width: 3;
-    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.3))
-           drop-shadow(0 0 6px rgba(0, 0, 0, 0.2))
-           drop-shadow(0 0 9px rgba(0, 0, 0, 0.1));
-  }
-
-  &.selected {
-    stroke: ${props => props.$isDarkMode ? '#fff' : '#333'};
-    stroke-width: 3;
-    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.4))
-           drop-shadow(0 0 8px rgba(0, 0, 0, 0.3))
-           drop-shadow(0 0 12px rgba(0, 0, 0, 0.2));
-  }
 `;
 
 const ConnectionGroup = styled(StyledGroup)`
@@ -117,17 +100,21 @@ const ConnectionLine = ({
   onControlPointsChange,
   showInterfaceLabels = true,
   type = 'solid',
+  color,
   selected = false,
   onClick
 }) => {
+  console.log('ConnectionLine props:', { connection, color, selected });
   const { isDarkMode } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [activePointIndex, setActivePointIndex] = useState(null);
   const [iconSize, setIconSize] = useState(0);
   const svgRef = useRef(null);
-  const colors = connection?.colors || ['#666'];
-
+  
+  // Use connection color if available, otherwise use passed color or default
+  const lineColor = connection?.color || color || '#666';
+  console.log('ConnectionLine props:', { connection, color: lineColor, selected });
   const handleMouseEnter = useCallback((e) => {
     e.stopPropagation();
     console.debug(`[ConnectionLine] Mouse Enter - Connection: ${connection?.id}`);
@@ -298,23 +285,20 @@ const ConnectionLine = ({
 
   return (
     <ConnectionGroup
+      $isDarkMode={isDarkMode}
       ref={svgRef}
       onClick={onClick}
     >
-      {colors.map((color, index) => (
-        <StyledPath
-          key={`${connection?.id}-path-${index}`}
-          d={getPathData(type, points)}
-          strokeDasharray={getStrokeDashArray(type)}
-          $isDarkMode={isDarkMode}
-          $selected={selected}
-          $isHovered={isHovered}
-          $color={color}
-          style={{ opacity: 1 / colors.length }}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        />
-      ))}
+      <StyledPath
+        d={getPathData(type, points)}
+        strokeDasharray={getStrokeDashArray(type)}
+        $selected={selected}
+        $isHovered={isHovered}
+        $color={lineColor}
+        $isDarkMode={isDarkMode}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      />
       {/* Source bulb to label or target bulb */}
       {showInterfaceLabels ? (
         <StyledPath
@@ -323,6 +307,7 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
+          $color={lineColor}
         />
       ) : (
         <StyledPath
@@ -331,6 +316,7 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
+          $color={lineColor}
         />
       )}
 
@@ -342,6 +328,7 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
+          $color={lineColor}
         />
       )}
 
@@ -353,6 +340,7 @@ const ConnectionLine = ({
           $isDarkMode={isDarkMode}
           $selected={selected}
           $isHovered={isHovered}
+          $color={lineColor}
         />
       )}
 

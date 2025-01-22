@@ -203,14 +203,14 @@ function NetworkDiagram() {
   } = useNetworkDevices(setHasUnsavedChanges);
 
   const {
-    selectedConnection,
+    selectedConnectionId,
     selectedConnectionType,
-    selectedColors,
+    selectedColor,
     addConnection,
     updateConnection,
     deleteConnection,
     handleConnectionTypeChange,
-    handleConnectionColorsChange,
+    handleConnectionColorChange,
     handleConnectionClick,
     deleteConnectionsForDevice
   } = useConnections(setHasUnsavedChanges, connections, setConnections);
@@ -321,13 +321,7 @@ function NetworkDiagram() {
 
   // Handler for selecting a connection
   const onConnectionSelect = (connectionId) => {
-    // If clicking the same connection, deselect it
-    if (selectedConnection === connectionId) {
-      handleConnectionClick(null);
-    } else {
-      handleConnectionClick(connectionId);
-      window.addNotification('Connection selected - Choose a connection type to change it', 'info');
-    }
+    handleConnectionClick(connectionId);
   };
 
   // Handler for selecting an interface
@@ -437,6 +431,7 @@ function NetworkDiagram() {
 
           // Render the connection line between devices
           // Example: Draw a line from router1's center (130, 130) to switch1's center (230, 230)
+          console.log('Rendering connection:', connection);
           return (
             <React.Fragment key={connection.id}>
               <ConnectionLine
@@ -447,7 +442,8 @@ function NetworkDiagram() {
                 targetX={targetCenter.x}
                 targetY={targetCenter.y}
                 type={connection.type || selectedConnectionType}
-                selected={selectedConnection === connection.id}
+                color={selectedConnectionId === connection.id ? selectedColor : connection.color}
+                selected={selectedConnectionId === connection.id}
                 onClick={() => onConnectionSelect(connection.id)}
                 onControlPointsChange={(newPoints) => handleControlPointsChange(connection.id, newPoints)}
               />
@@ -568,8 +564,8 @@ function NetworkDiagram() {
         networkIcons={networkIcons}
         onConnectionTypeChange={onConnectionTypeSelect}
         selectedConnectionType={selectedConnectionType}
-        selectedColors={selectedColors}
-        onConnectionColorsChange={handleConnectionColorsChange}
+        selectedColor={selectedColor}
+        onConnectionColorChange={handleConnectionColorChange}
         isDarkMode={isDarkMode}
       />
       <SideToolbar

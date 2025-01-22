@@ -85,7 +85,20 @@ const MenuItem = styled.div`
 // - onInterfaceSelect: Callback for interface selection from context menu
 // - onDelete: Callback for deleting the device
 // - showInterfaceLabels: Whether to display interface labels
-const NetworkDevice = ({ id, type, icon, x, y, onDrag, onDragStop, onInterfaceSelect, onDelete, showInterfaceLabels }) => {
+const NetworkDevice = ({ 
+  id, 
+  type, 
+  icon, 
+  x, 
+  y, 
+  onDrag, 
+  onDragStop, 
+  onInterfaceSelect, 
+  onDelete, 
+  showInterfaceLabels,
+  $isDarkMode,
+  canvasScale = 1
+}) => {
   // Reference to the device DOM element for drag handling
   const ref = useRef(null);
   
@@ -99,8 +112,8 @@ const NetworkDevice = ({ id, type, icon, x, y, onDrag, onDragStop, onInterfaceSe
   // When dragging starts, it provides the device id and type to the drag source
   const [{ isDragging }, drag] = useDrag({
     type: 'DEVICE',
-    item: { id, type },
-    collect: monitor => ({
+    item: { id, type, x, y },
+    collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
   });
@@ -184,28 +197,76 @@ const NetworkDevice = ({ id, type, icon, x, y, onDrag, onDragStop, onInterfaceSe
   // Handle mouse down event for dragging
   const handleMouseDown = (e) => {
     if (e.button === 2) return; // Skip for right-click
+    e.stopPropagation();
     
-    // Store initial positions for drag calculation
-    const startX = e.clientX;
-    const startY = e.clientY;
+    // Get container rect once at start
+    const containerRect = document.getElementById('diagram-container').getBoundingClientRect();
+    
+    // Calculate initial mouse position relative to container and scale
+    const startMouseX = (e.clientX - containerRect.left) / canvasScale;
+    const startMouseY = (e.clientY - containerRect.top) / canvasScale;
+    
+    // Store initial device position
     const startDeviceX = x;
     const startDeviceY = y;
     
+    console.log('Drag Start:', {
+      mouseX: startMouseX,
+      mouseY: startMouseY,
+      deviceX: startDeviceX,
+      deviceY: startDeviceY,
+      scale: canvasScale
+    });
+    
     // Handle mouse movement during drag
     const handleMouseMove = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
+      // Calculate current mouse position relative to container and scale
+      const currentMouseX = (moveEvent.clientX - containerRect.left) / canvasScale;
+      const currentMouseY = (moveEvent.clientY - containerRect.top) / canvasScale;
+      
+      // Calculate delta from initial positions
+      const deltaX = currentMouseX - startMouseX;
+      const deltaY = currentMouseY - startMouseY;
+      
+      // Apply delta to initial device position
       const newX = startDeviceX + deltaX;
       const newY = startDeviceY + deltaY;
+
+      console.log('Drag Move:', {
+        mouseX: currentMouseX,
+        mouseY: currentMouseY,
+        deltaX,
+        deltaY,
+        newX,
+        newY,
+        scale: canvasScale
+      });
+
       onDrag(id, newX, newY);
     };
     
     // Handle mouse up to end dragging
     const handleMouseUp = (upEvent) => {
-      const deltaX = upEvent.clientX - startX;
-      const deltaY = upEvent.clientY - startY;
+      // Calculate final mouse position relative to container and scale
+      const finalMouseX = (upEvent.clientX - containerRect.left) / canvasScale;
+      const finalMouseY = (upEvent.clientY - containerRect.top) / canvasScale;
+      
+      // Calculate final delta and position
+      const deltaX = finalMouseX - startMouseX;
+      const deltaY = finalMouseY - startMouseY;
       const finalX = startDeviceX + deltaX;
       const finalY = startDeviceY + deltaY;
+
+      console.log('Drag End:', {
+        mouseX: finalMouseX,
+        mouseY: finalMouseY,
+        deltaX,
+        deltaY,
+        finalX,
+        finalY,
+        scale: canvasScale
+      });
+
       onDragStop(id, finalX, finalY);
       
       document.removeEventListener('mousemove', handleMouseMove);
@@ -220,6 +281,8 @@ const NetworkDevice = ({ id, type, icon, x, y, onDrag, onDragStop, onInterfaceSe
   return (
     <DeviceContainer
       ref={drag(ref)}
+      x={x}
+      y={y}
       style={{
         opacity: isDragging ? 0.5 : 1,
         transform: `translate(${x}px, ${y}px)`,

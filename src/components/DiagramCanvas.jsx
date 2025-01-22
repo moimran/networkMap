@@ -8,6 +8,10 @@ const Canvas = styled.svg`
   width: 100%;
   height: 100%;
   background: ${props => props.$isDarkMode ? '#1a1a1a' : '#ffffff'};
+  transform: scale(${props => props.$scale});
+  transform-origin: top left;
+  min-width: ${props => `${100 / props.$scale}%`};
+  min-height: ${props => `${100 / props.$scale}%`};
 `;
 
 const PendingConnectionGroup = styled.g``;
@@ -24,7 +28,8 @@ const DiagramCanvas = ({
   onDeviceDelete,
   onConnectionClick,
   onControlPointsChange,
-  onDrop
+  onDrop,
+  scale
 }) => {
   const [, drop] = useDrop({
     accept: 'DEVICE',
@@ -87,7 +92,7 @@ const DiagramCanvas = ({
   };
 
   return (
-    <Canvas ref={drop} $isDarkMode={isDarkMode}>
+    <Canvas ref={drop} $isDarkMode={isDarkMode} $scale={scale}>
       {renderConnections()}
       {renderPendingConnection()}
       {devices.map(device => (

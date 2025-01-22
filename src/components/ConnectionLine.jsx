@@ -13,23 +13,6 @@ const ConnectionBulb = styled.circle`
   animation: ${glowAnimation} 2s ease-in-out infinite;
 `;
 
-const LabelContainer = styled.path`
-  fill: ${props => props.$isDarkMode ? '#2d2d2d' : 'white'};
-  stroke: ${props => props.$isDarkMode ? '#666' : '#666'};
-  stroke-width: 1px;
-`;
-
-const InterfaceLabel = styled.text`
-  font-size: 12px;
-  fill: ${props => props.$isDarkMode ? '#ffffff' : '#333'};
-  dominant-baseline: middle;
-  text-anchor: middle;
-`;
-
-const StyledGroup = styled.g`
-  pointer-events: all;
-`;
-
 const StyledPath = styled.path`
   stroke: ${props => props.$color || '#666'};
   stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
@@ -45,7 +28,7 @@ const StyledPath = styled.path`
   };
 `;
 
-const ConnectionGroup = styled(StyledGroup)`
+const ConnectionGroup = styled.g`
   pointer-events: all;
   &:hover {
     ${StyledPath} {
@@ -60,6 +43,16 @@ const ConnectionGroup = styled(StyledGroup)`
   }
 `;
 
+const ControlPoint = styled.circle`
+  fill: ${props => props.$isDarkMode ? '#666' : '#999'};
+  stroke: ${props => props.$isDarkMode ? '#999' : '#666'};
+  stroke-width: 2;
+  cursor: move;
+  &:hover {
+    fill: #4CAF50;
+  }
+`;
+
 const getStrokeDashArray = (type) => {
   switch (type) {
     case 'dashed':
@@ -71,24 +64,38 @@ const getStrokeDashArray = (type) => {
   }
 };
 
-const getPathData = (type, points) => {
+const getPathData = (type, points, controlPoints = []) => {
   const { source, target } = points;
   
-  switch (type) {
-    case 'curved':
-      const midX = (source.x + target.x) / 2;
-      const midY = (source.y + target.y) / 2;
-      const controlY = midY - 50; // Curve height
-      return `M ${source.x} ${source.y} Q ${midX} ${controlY} ${target.x} ${target.y}`;
-    
-    case 'angled':
-      const cornerX = source.x;
-      const cornerY = target.y;
-      return `M ${source.x} ${source.y} L ${cornerX} ${cornerY} L ${target.x} ${target.y}`;
-    
-    default: // solid, dashed, dotted
-      return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+  // Ensure controlPoints is an array
+  const safeControlPoints = Array.isArray(controlPoints) ? controlPoints : [];
+  
+  if (!safeControlPoints.length) {
+    // Default path types without labels
+    switch (type) {
+      case 'curved':
+        const midX = (source.x + target.x) / 2;
+        const midY = (source.y + target.y) / 2;
+        const controlY = midY - 50;
+        return `M ${source.x} ${source.y} Q ${midX} ${controlY} ${target.x} ${target.y}`;
+      
+      case 'angled':
+        const cornerX = source.x;
+        const cornerY = target.y;
+        return `M ${source.x} ${source.y} L ${cornerX} ${cornerY} L ${target.x} ${target.y}`;
+      
+      default:
+        return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+    }
   }
+  
+  // Path with control points
+  let path = `M ${source.x} ${source.y}`;
+  safeControlPoints.forEach(point => {
+    path += ` L ${point.x} ${point.y}`;
+  });
+  path += ` L ${target.x} ${target.y}`;
+  return path;
 };
 
 const ConnectionLine = ({
@@ -98,23 +105,21 @@ const ConnectionLine = ({
   targetX,
   targetY,
   onControlPointsChange,
-  showInterfaceLabels = true,
   type = 'solid',
   color,
   selected = false,
   onClick
 }) => {
-  console.log('ConnectionLine props:', { connection, color, selected });
+  // console.log('ConnectionLine props:', { connection, color, selected });
   const { isDarkMode } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [activePointIndex, setActivePointIndex] = useState(null);
-  const [iconSize, setIconSize] = useState(0);
+  const [draggingPointIndex, setDraggingPointIndex] = useState(null);
+  const [initialMousePosition, setInitialMousePosition] = useState(null);
   const svgRef = useRef(null);
   
   // Use connection color if available, otherwise use passed color or default
   const lineColor = connection?.color || color || '#666';
-  console.log('ConnectionLine props:', { connection, color: lineColor, selected });
+  // console.log('ConnectionLine props:', { connection, color: lineColor, selected });
   const handleMouseEnter = useCallback((e) => {
     e.stopPropagation();
     console.debug(`[ConnectionLine] Mouse Enter - Connection: ${connection?.id}`);
@@ -127,241 +132,135 @@ const ConnectionLine = ({
     setIsHovered(false);
   }, [connection?.id]);
 
-  // Calculate icon size from SVG element
-  useEffect(() => {
-    const calculateIconSize = () => {
-      if (svgRef.current) {
-        const svgElement = svgRef.current.closest('svg');
-        if (svgElement) {
-          const iconElement = svgElement.querySelector('.network-icon'); // Add this class to your device icons
-          if (iconElement) {
-            const bbox = iconElement.getBoundingClientRect();
-            setIconSize(Math.max(bbox.width, bbox.height));
-          }
-        }
-      }
+  const handleClick = (e) => {
+    e.stopPropagation(); // Prevent event from bubbling up
+    if (onClick) {
+      onClick(connection.id);
+    }
+  };
+
+  const handleDoubleClick = (e) => {
+    e.stopPropagation(); // Prevent event from bubbling up
+    if (!selected) return;
+
+    const svgRect = svgRef.current.ownerSVGElement.getBoundingClientRect();
+    const x = e.clientX - svgRect.left;
+    const y = e.clientY - svgRect.top;
+
+    // Ensure controlPoints is an array before spreading
+    const existingControlPoints = Array.isArray(connection.controlPoints) ? connection.controlPoints : [];
+    const newControlPoints = [...existingControlPoints, { x, y }];
+    
+    if (onControlPointsChange) {
+      onControlPointsChange(newControlPoints);
+    }
+  };
+
+  const handleControlPointDragStart = (e) => {
+    e.stopPropagation();
+    const pointIndex = parseInt(e.target.getAttribute('data-index'));
+    setDraggingPointIndex(pointIndex);
+    
+    const svgRect = svgRef.current.ownerSVGElement.getBoundingClientRect();
+    setInitialMousePosition({
+      x: e.clientX - svgRect.left,
+      y: e.clientY - svgRect.top
+    });
+  };
+
+  const handleControlPointDrag = useCallback((e) => {
+    if (draggingPointIndex === null || !initialMousePosition) return;
+
+    const svgRect = svgRef.current.ownerSVGElement.getBoundingClientRect();
+    const currentMousePosition = {
+      x: e.clientX - svgRect.left,
+      y: e.clientY - svgRect.top
     };
 
-    calculateIconSize();
-    // Recalculate on window resize
-    window.addEventListener('resize', calculateIconSize);
-    return () => window.removeEventListener('resize', calculateIconSize);
+    const existingControlPoints = Array.isArray(connection.controlPoints) ? connection.controlPoints : [];
+    const updatedControlPoints = [...existingControlPoints];
+    updatedControlPoints[draggingPointIndex] = {
+      x: currentMousePosition.x,
+      y: currentMousePosition.y
+    };
+
+    if (onControlPointsChange) {
+      onControlPointsChange(updatedControlPoints);
+    }
+  }, [draggingPointIndex, initialMousePosition, connection.controlPoints, onControlPointsChange]);
+
+  const handleControlPointDragEnd = useCallback(() => {
+    setDraggingPointIndex(null);
+    setInitialMousePosition(null);
   }, []);
 
-  // Calculate label dimensions
-  const getLabelDimensions = (text) => {
-    if (!text) return { width: 0, height: 0 };
-    const charWidth = 6.5; // Average width per character
-    const height = 16; // Fixed height for the text
-    const width = text.length * charWidth;
-    const padding = Math.min(8, height/2); // Padding scales with height but caps at 8px
-    
-    return {
-      width,
-      height,
-      padding,
-      totalWidth: width + padding,
-      totalHeight: height + padding
-    };
+  useEffect(() => {
+    if (draggingPointIndex !== null) {
+      window.addEventListener('mousemove', handleControlPointDrag);
+      window.addEventListener('mouseup', handleControlPointDragEnd);
+
+      return () => {
+        window.removeEventListener('mousemove', handleControlPointDrag);
+        window.removeEventListener('mouseup', handleControlPointDragEnd);
+      };
+    }
+  }, [draggingPointIndex, handleControlPointDrag, handleControlPointDragEnd]);
+
+  const handleControlPointContextMenu = (e, index) => {
+    e.preventDefault();
+    const updatedControlPoints = [...(connection.controlPoints || [])];
+    updatedControlPoints.splice(index, 1);
+    onControlPointsChange(connection.id, updatedControlPoints);
   };
 
-  // Create egg-shaped path for label container
-  const createEggPath = (dimensions) => {
-    const { width, height, padding } = dimensions;
-    const w = width + padding;
-    const h = height + padding;
-    
-    // Calculate radius based on height
-    const r = h / 2;
-    // Calculate control point offset for smoother curves
-    const c = r * 0.552284749831; // Magic number to make perfect quarter circle
-    
-    // Create a smooth pill shape with dynamic dimensions
-    return `
-      M ${-w/2},0 
-      c 0,${-c} ${c},${-r} ${r},${-r}
-      h ${w - r * 2}
-      c ${c},0 ${r},${c} ${r},${r}
-      c 0,${c} ${-c},${r} ${-r},${r}
-      h ${-(w - r * 2)}
-      c ${-c},0 ${-r},${-c} ${-r},${-r}
-      Z
-    `.trim();
-  };
-
-  // Calculate connection points and paths
   const calculateConnectionPoints = () => {
-    const dx = targetX - sourceX;
-    const dy = targetY - sourceY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // Use calculated icon size with a fallback
-    const effectiveIconSize = iconSize || (() => {
-      // console.warn('Icon size not calculated yet, falling back to default size of 70px. This may cause temporary visual inconsistencies.');
-      return 70;
-    })();
-    
-    // Calculate dynamic distances
-    const iconRadius = effectiveIconSize / 2;
-    const bulbDistance = 2; // Distance from icon edge to bulb
-    const labelDistance = 15; // Distance between bulb and label
-    const lineDistance = 1; // Distance between line and label
-    
-    // Calculate dimensions for both labels
-    const sourceDims = getLabelDimensions(connection?.sourceInterface?.name);
-    const targetDims = getLabelDimensions(connection?.targetInterface?.name);
-    
-    if (distance === 0) return {
-      source: { x: sourceX, y: sourceY },
-      target: { x: targetX, y: targetY }
-    };
-    
-    // Calculate unit vector
-    const ux = dx / distance;
-    const uy = dy / distance;
-    
-    // Calculate bulb positions - starting from icon edge
-    const sourceBulb = {
-      x: sourceX + (ux * (iconRadius + bulbDistance)),
-      y: sourceY + (uy * (iconRadius + bulbDistance))
-    };
-    
-    const targetBulb = {
-      x: targetX - (ux * (iconRadius + bulbDistance)),
-      y: targetY - (uy * (iconRadius + bulbDistance))
-    };
-
-    // Source side positions - place label after bulb
-    const sourceLabel = {
-      x: sourceBulb.x + (ux * (labelDistance + sourceDims.totalWidth/2)), // Center the label after the bulb
-      y: sourceBulb.y + (uy * (labelDistance + sourceDims.totalWidth/2)),
-      dims: sourceDims,
-      path: createEggPath(sourceDims)
-    };
-
-    // Calculate where the line should start (after source label container)
-    const sourceLineStart = {
-      x: sourceLabel.x + (ux * (sourceDims.totalWidth/2 + lineDistance)), // Add buffer after label
-      y: sourceLabel.y + (uy * (sourceDims.totalWidth/2 + lineDistance))
-    };
-
-    // Target side positions - place label before bulb
-    const targetLabel = {
-      x: targetBulb.x - (ux * (labelDistance + targetDims.totalWidth/2)), // Mirror the source side positioning
-      y: targetBulb.y - (uy * (labelDistance + targetDims.totalWidth/2)),
-      dims: targetDims,
-      path: createEggPath(targetDims)
-    };
-
-    // Calculate where the line should end (before target label container)
-    const targetLineEnd = {
-      x: targetLabel.x - (ux * (targetDims.totalWidth/2 + lineDistance)), // Mirror source side buffer
-      y: targetLabel.y - (uy * (targetDims.totalWidth/2 + lineDistance))
-    };
-
     return {
-      source: sourceBulb,
-      target: targetBulb,
-      labels: {
-        source: sourceLabel,
-        target: targetLabel
+      source: {
+        x: sourceX,
+        y: sourceY
       },
-      lines: {
-        sourceStart: sourceLineStart,
-        targetEnd: targetLineEnd
+      target: {
+        x: targetX,
+        y: targetY
       }
     };
-  };
-
-  // Calculate the angle for the labels
-  const getLabelAngle = () => {
-    const dx = targetX - sourceX;
-    const dy = targetY - sourceY;
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-    return angle > 90 || angle < -90 ? angle + 180 : angle;
   };
 
   const points = calculateConnectionPoints();
+  const controlPoints = Array.isArray(connection.controlPoints) ? connection.controlPoints : [];
+  const pathData = getPathData(type, points, controlPoints);
 
   return (
     <ConnectionGroup
-      $isDarkMode={isDarkMode}
       ref={svgRef}
-      onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
+      {/* Main connection line */}
       <StyledPath
-        d={getPathData(type, points)}
+        d={pathData}
         $type={type}
         $color={lineColor}
         $selected={selected}
         $isHovered={isHovered}
         $isDarkMode={isDarkMode}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
       />
-      {/* Source bulb to label or target bulb */}
-      {showInterfaceLabels ? (
-        <StyledPath
-          d={`M ${points.source.x} ${points.source.y} L ${points.labels.source.x} ${points.labels.source.y}`}
-          fill="none"
-          $isDarkMode={isDarkMode}
-          $selected={selected}
-          $isHovered={isHovered}
-          $color={lineColor}
-          $type={type}
-        />
-      ) : (
-        <StyledPath
-          d={`M ${points.source.x} ${points.source.y} L ${points.target.x} ${points.target.y}`}
-          fill="none"
-          $isDarkMode={isDarkMode}
-          $selected={selected}
-          $isHovered={isHovered}
-          $color={lineColor}
-          $type={type}
-        />
-      )}
 
-      {/* Main connection line between labels - only show when labels are visible */}
-      {showInterfaceLabels && (
-        <StyledPath
-          d={`M ${points.lines.sourceStart.x} ${points.lines.sourceStart.y} L ${points.lines.targetEnd.x} ${points.lines.targetEnd.y}`}
-          fill="none"
+      {/* Control Points */}
+      {selected && controlPoints.map((point, index) => (
+        <ControlPoint
+          key={index}
+          data-index={index}
+          cx={point.x}
+          cy={point.y}
+          r="6"
           $isDarkMode={isDarkMode}
-          $selected={selected}
-          $isHovered={isHovered}
-          $color={lineColor}
-          $type={type}
+          onMouseDown={handleControlPointDragStart}
+          onContextMenu={(e) => handleControlPointContextMenu(e, index)}
         />
-      )}
-
-      {/* Target label to bulb - only show when labels are visible */}
-      {showInterfaceLabels && (
-        <StyledPath
-          d={`M ${points.labels.target.x} ${points.labels.target.y} L ${points.target.x} ${points.target.y}`}
-          fill="none"
-          $isDarkMode={isDarkMode}
-          $selected={selected}
-          $isHovered={isHovered}
-          $color={lineColor}
-          $type={type}
-        />
-      )}
-
-      {/* Labels with egg-shaped containers */}
-      {showInterfaceLabels && connection.sourceInterface && (
-        <StyledGroup transform={`translate(${points.labels.source.x}, ${points.labels.source.y}) rotate(${getLabelAngle()})`}>
-          <LabelContainer $isDarkMode={isDarkMode} d={points.labels.source.path} />
-          <InterfaceLabel $isDarkMode={isDarkMode}>{connection.sourceInterface.name}</InterfaceLabel>
-        </StyledGroup>
-      )}
-
-      {showInterfaceLabels && connection.targetInterface && (
-        <StyledGroup transform={`translate(${points.labels.target.x}, ${points.labels.target.y}) rotate(${getLabelAngle()})`}>
-          <LabelContainer $isDarkMode={isDarkMode} d={points.labels.target.path} />
-          <InterfaceLabel $isDarkMode={isDarkMode}>{connection.targetInterface.name}</InterfaceLabel>
-        </StyledGroup>
-      )}
+      ))}
 
       {/* Glowing bulbs at the ends */}
       <ConnectionBulb cx={points.source.x} cy={points.source.y} r="4" />

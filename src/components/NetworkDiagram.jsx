@@ -16,12 +16,83 @@ import { useNetworkConfig } from '../hooks/useNetworkConfig';
 
 // Styled component for the diagram container
 const DiagramContainer = styled.div`
-  width: 100%;
-  height: calc(100% - 60px);
-  background-color: ${props => props.$isDarkMode ? '#1a1a1a' : 'white'};
+  width: ${props => `${100 / props.scale}%`};
+  height: ${props => `${100 / props.scale}%`};
+  min-width: 100%;
+  min-height: calc(100% - 60px);
+  background-color: ${props => props.$isDarkMode ? '#1a1a1a' : '#ffffff'};
+  background-image: ${props => {
+    // For dark mode, use a brighter white with same opacity
+    const darkModeColor = 'rgba(255, 255, 255, 0.35)';
+    const darkModeSmallColor = 'rgba(255, 255, 255, 0.25)';
+    const darkModeDotsColor = 'rgba(255, 255, 255, 0.4)';
+    
+    // Light mode colors remain the same
+    const lightModeColor = 'rgba(0, 0, 0, 0.25)';
+    const lightModeSmallColor = 'rgba(0, 0, 0, 0.2)';
+    const lightModeDotsColor = 'rgba(0, 0, 0, 0.3)';
+
+    const color = props.$isDarkMode ? darkModeColor : lightModeColor;
+    const smallGridColor = props.$isDarkMode ? darkModeSmallColor : lightModeSmallColor;
+    const dotsColor = props.$isDarkMode ? darkModeDotsColor : lightModeDotsColor;
+    
+    switch(props.theme?.id) {
+      case 'dots':
+        return `
+          radial-gradient(${dotsColor} 1px, transparent 1px),
+          radial-gradient(${dotsColor} 1px, transparent 1px)
+        `;
+      case 'grid':
+        return `
+          linear-gradient(${color} 1px, transparent 1px),
+          linear-gradient(90deg, ${color} 1px, transparent 1px),
+          linear-gradient(${smallGridColor} 1px, transparent 1px),
+          linear-gradient(90deg, ${smallGridColor} 1px, transparent 1px)
+        `;
+      case 'lines':
+        return `
+          linear-gradient(${color} 1px, transparent 1px),
+          linear-gradient(90deg, ${color} 1px, transparent 1px)
+        `;
+      default:
+        return 'none';
+    }
+  }};
+  background-size: ${props => {
+    switch(props.theme?.id) {
+      case 'dots':
+        return '20px 20px';
+      case 'grid':
+        return '100px 100px, 100px 100px, 20px 20px, 20px 20px';
+      case 'lines':
+        return '20px 20px';
+      default:
+        return 'auto';
+    }
+  }};
+  background-position: ${props => {
+    switch(props.theme?.id) {
+      case 'dots':
+        return '10px 10px';
+      case 'grid':
+        return '-1px -1px, -1px -1px, -1px -1px, -1px -1px';
+      case 'lines':
+        return '-1px -1px';
+      default:
+        return '0 0';
+    }
+  }};
   border: 1px solid ${props => props.$isDarkMode ? '#404040' : '#ccc'};
   position: relative;
   transition: all 0.3s ease;
+  transform: scale(${props => props.scale});
+  transform-origin: top left;
+  overflow: auto;
+  
+  /* Ensure device positions are scaled correctly */
+  & > * {
+    transform-origin: top left;
+  }
 `;
 
 // Styled component for the connection SVG
@@ -112,6 +183,22 @@ const CloseButton = styled(ToolbarButton)`
   }
 `;
 
+// Add a wrapper to handle overflow
+const DiagramWrapper = styled.div`
+  height: calc(100vh - 60px);
+  overflow: auto;
+  position: relative;
+  user-select: ${props => props.$isPanning ? 'none' : 'auto'};
+  cursor: ${props => props.$tool === 'hand' 
+    ? (props.$isPanning ? 'grabbing' : 'grab') 
+    : 'default'
+  };
+
+  &:active {
+    cursor: ${props => props.$tool === 'hand' ? 'grabbing' : 'default'};
+  }
+`;
+
 // Network device icons as inline SVGs for better portability
 const networkIcons = [
   {
@@ -184,6 +271,12 @@ function NetworkDiagram() {
   // All useState hooks grouped together
   const [returnPath, setReturnPath] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [selectedCanvasTheme, setSelectedCanvasTheme] = useState('grid');
+  const [canvasScale, setCanvasScale] = useState(1);
+  const [selectedTool, setSelectedTool] = useState('pointer');
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [lastScrollPosition, setLastScrollPosition] = useState({ x: 0, y: 0 });
   const [connections, setConnections] = useState([]);
   const [pendingConnection, setPendingConnection] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -217,6 +310,101 @@ function NetworkDiagram() {
 
   // Config hook after other custom hooks
   const { saveConfig } = useNetworkConfig(configFile, setDevices, setConnections);
+
+  // Get the current theme settings
+  const getCurrentTheme = useCallback(() => {
+    const themes = {
+      none: { id: 'none', name: 'No Grid' },
+      dots: { id: 'dots', name: 'Dots' },
+      lines: { id: 'lines', name: 'Lines' },
+      grid: { id: 'grid', name: 'Grid' }
+    };
+    return themes[selectedCanvasTheme] || themes.none;
+  }, [selectedCanvasTheme]);
+
+  // Handler for canvas theme change
+  const handleCanvasThemeChange = (themeId) => {
+    setSelectedCanvasTheme(themeId);
+  };
+
+  // Handler for canvas scale change
+  const handleCanvasScaleChange = (scale) => {
+    setCanvasScale(scale);
+  };
+
+  // Handler for tool change
+  const handleToolChange = (tool) => {
+    setSelectedTool(tool);
+  };
+
+  // Handlers for panning
+  const handleMouseDown = (e) => {
+    if (selectedTool === 'hand') {
+      e.preventDefault(); // Prevent text selection while panning
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      setLastScrollPosition({
+        x: diagramRef.current.scrollLeft,
+        y: diagramRef.current.scrollTop
+      });
+      document.body.style.cursor = 'grabbing';
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (isPanning && selectedTool === 'hand') {
+      e.preventDefault();
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      
+      if (diagramRef.current) {
+        diagramRef.current.scrollLeft = lastScrollPosition.x - dx;
+        diagramRef.current.scrollTop = lastScrollPosition.y - dy;
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (isPanning) {
+      setIsPanning(false);
+      document.body.style.cursor = selectedTool === 'hand' ? 'grab' : 'default';
+      // Update last scroll position when stopping pan
+      if (diagramRef.current) {
+        setLastScrollPosition({
+          x: diagramRef.current.scrollLeft,
+          y: diagramRef.current.scrollTop
+        });
+      }
+    }
+  };
+
+  // Add keyboard shortcuts for tools
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      switch (e.key.toLowerCase()) {
+        case 'v':
+          setSelectedTool('pointer');
+          break;
+        case 'h':
+          setSelectedTool('hand');
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
+  // Update cursor based on selected tool
+  useEffect(() => {
+    if (diagramRef.current) {
+      diagramRef.current.style.cursor = selectedTool === 'hand' ? 'grab' : 'default';
+    }
+  }, [selectedTool]);
 
   // useEffect hooks at the end
   useEffect(() => {
@@ -355,18 +543,79 @@ function NetworkDiagram() {
   };
 
   // Handler for dragging a device
-  // Example: When user drags a device, this will:
-  // 1. Update the position of the device
   const handleDeviceDrag = (deviceId, x, y) => {
+    if (!diagramRef.current) return;
+    
+    // Just update with the raw coordinates
     updateDevice(deviceId, { x, y });
   };
 
   // Handler for stopping the drag of a device
-  // Example: When user stops dragging a device, this will:
-  // 1. Update the position of the device
   const handleDeviceDragStop = (deviceId, x, y) => {
+    if (!diagramRef.current) return;
+    
+    // Just update with the raw coordinates
     updateDevice(deviceId, { x, y });
+    setHasUnsavedChanges(true);
   };
+
+  // Use the useDrop hook to handle dropping a network icon
+  const [, drop] = useDrop({
+    accept: 'NETWORK_ICON',
+    drop: (item, monitor) => {
+      const offset = monitor.getClientOffset();
+      const containerRect = document.getElementById('diagram-container').getBoundingClientRect();
+      
+      // For new drops, we do need to adjust for container position and scale
+      const x = (offset.x - containerRect.left) / canvasScale;
+      const y = (offset.y - containerRect.top) / canvasScale;
+
+      const deviceType = networkIcons.find(ni => ni.type === item.type);
+      const newDevice = {
+        id: Date.now(),
+        type: item.type,
+        icon: deviceType ? deviceType.icon : item.icon,
+        label: item.label || deviceType?.label || item.type,
+        x,
+        y,
+      };
+
+      addDevice(newDevice);
+      window.addNotification(`Added new ${item.type} device`, 'success');
+    },
+  });
+
+  // Effect hook to handle mouse move events when a connection is pending
+  useEffect(() => {
+    if (pendingConnection) {
+      const handleMouseMove = (e) => {
+        const containerRect = diagramRef.current.getBoundingClientRect();
+        setMousePosition({
+          x: e.clientX - containerRect.left,
+          y: e.clientY - containerRect.top
+        });
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      return () => document.removeEventListener('mousemove', handleMouseMove);
+    }
+  }, [pendingConnection]);
+
+  // Effect hook to handle clicks outside the context menu
+  useEffect(() => {
+    const handleClick = (e) => {
+      // Only handle clicks on the diagram container itself, not its children
+      if (e.target.id === 'diagram-container') {
+        setShowContextMenu(false);
+        // Only deselect if we have a selected connection
+        if (selectedConnectionId !== null) {
+          handleConnectionClick(null);
+        }
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [handleConnectionClick, selectedConnectionId]);
 
   // Function to calculate the position of an interface
   // Example: When user selects an interface, this will:
@@ -470,86 +719,8 @@ function NetworkDiagram() {
     );
   };
 
-  // Effect hook to handle clicks outside the context menu
-  useEffect(() => {
-    const handleClick = (e) => {
-      // Only handle clicks on the diagram container itself, not its children
-      if (e.target.id === 'diagram-container') {
-        setShowContextMenu(false);
-        // Only deselect if we have a selected connection
-        if (selectedConnectionId !== null) {
-          handleConnectionClick(null);
-        }
-      }
-    };
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, [handleConnectionClick, selectedConnectionId]);
-
-  // Use the useDrop hook to handle dropping a network icon
-  const [, drop] = useDrop({
-    // Specify the type of items that can be dropped
-    accept: 'NETWORK_ICON',
-    // Handler function called when a network icon is dropped onto the diagram
-    // Example: When user drags a router icon from the left menu and drops it on the diagram
-    drop: (item, monitor) => {
-      // Get the current mouse position where the item was dropped
-      // Example: If mouse is at (500, 300) on screen
-      const offset = monitor.getClientOffset();
-      // Get the diagram container's position and dimensions
-      // Example: If container starts at (100, 100), we'll subtract this from drop position
-      const containerRect = document.getElementById('diagram-container').getBoundingClientRect();
-      
-      // Calculate the exact position within the diagram container
-      // Example: If dropped at (500, 300) and container starts at (100, 100)
-      // Then x = 500 - 100 = 400, y = 300 - 100 = 200
-      const x = offset.x - containerRect.left;
-      const y = offset.y - containerRect.top;
-
-      // Find the device type configuration from networkIcons array
-      // Example: If item.type is 'router', find its icon and label from networkIcons
-      const deviceType = networkIcons.find(ni => ni.type === item.type);
-      // Create new device object with unique timestamp ID and position
-      // Example: {
-      //   id: 1674096123456,
-      //   type: 'router',
-      //   icon: 'router.svg',
-      //   label: 'Router',
-      //   x: 400,
-      //   y: 200
-      // }
-      const newDevice = {
-        id: Date.now(),
-        type: item.type,
-        icon: deviceType ? deviceType.icon : item.icon,
-        label: item.label || deviceType?.label || item.type,
-        x,
-        y,
-      };
-
-      // Add the new device to the diagram state
-      addDevice(newDevice);
-      window.addNotification(`Added new ${item.type} device`, 'success');
-    },
-  });
-
-  // Effect hook to handle mouse move events when a connection is pending
-  useEffect(() => {
-    if (pendingConnection) {
-      const handleMouseMove = (e) => {
-        const containerRect = document.getElementById('diagram-container').getBoundingClientRect();
-        setMousePosition({
-          x: e.clientX - containerRect.left,
-          y: e.clientY - containerRect.top
-        });
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      return () => document.removeEventListener('mousemove', handleMouseMove);
-    }
-  }, [pendingConnection]);
-
   // Render the NetworkDiagram component
+  const diagramRef = useRef(null);
   return (
     /* Main container component that wraps the entire diagram interface
        Example: Changes background color based on dark/light mode */
@@ -568,7 +739,14 @@ function NetworkDiagram() {
       <SideToolbar
         selectedConnectionType={selectedConnectionType}
       />
-      <Toolbar>
+      <Toolbar
+        onCanvasThemeChange={handleCanvasThemeChange}
+        selectedCanvasTheme={selectedCanvasTheme}
+        onScaleChange={handleCanvasScaleChange}
+        scale={canvasScale}
+        onToolChange={handleToolChange}
+        selectedTool={selectedTool}
+      >
         <div style={{ display: 'flex', gap: '8px' }}>
           <SaveButton
             onClick={handleSave}
@@ -587,99 +765,118 @@ function NetworkDiagram() {
       </Toolbar>
       {/* Main diagram container where devices and connections are rendered
           Example: This is the drop target for new devices when dragged from LeftMenu */}
-      <DiagramContainer
-        ref={drop}
-        id="diagram-container"
+      <DiagramWrapper
+        ref={diagramRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        $isPanning={isPanning}
+        $tool={selectedTool}
       >
-        {/* SVG container for all network connections
-            Example: Contains all connection lines between devices */}
-        <Connection>
-          {renderConnections()}
-        </Connection>
-        {/* Map through all devices and render NetworkDevice components
-            Example: If devices = [{id: 1, type: 'router', x: 100, y: 100}],
-            it renders a router device at position (100,100) */}
-        {devices.map((device) => (
-          <NetworkDevice
-            key={device.id}
-            {...device}
-            $isDarkMode={isDarkMode}
-            onInterfaceSelect={handleInterfaceSelect}
-            onDrag={handleDeviceDrag}
-            onDragStop={handleDeviceDragStop}
-            onDelete={handleDeleteDevice}
-          />
-        ))}
-        {/* Context menu for interface selection when creating connections
-            Example: When user clicks a device interface:
-            1. If no pending connection exists:
-               - Creates new pending connection from selected interface
-            2. If pending connection exists:
-               - Completes the connection between source and target interfaces */}
-        {showContextMenu && selectedDevice && (
-          <ContextMenu
-            $isDarkMode={isDarkMode}
-            x={contextMenuPosition.x}
-            y={contextMenuPosition.y}
-            interfaces={selectedDevice.interfaces}
-            usedInterfaces={getUsedInterfaces(selectedDevice.id)}
-            onSelect={(selectedInterface) => {
-              console.log('Interface selected:', selectedInterface);
-              // Check if the interface is already used
-              const usedInterfaces = getUsedInterfaces(selectedDevice.id);
-              if (usedInterfaces.includes(selectedInterface.name)) {
-                window.addNotification('This interface is already in use', 'error');
-                return;
-              }
-
-              if (!pendingConnection) {
-                // Start new connection
-                // Example: User clicks Router1's GigabitEthernet0/0 interface
-                console.log('Creating pending connection:', {
-                  sourceDeviceId: selectedDevice.id,
-                  sourceInterface: selectedInterface
-                });
-                setPendingConnection({
-                  sourceDeviceId: selectedDevice.id,
-                  sourceInterface: selectedInterface,
-                  type: selectedConnectionType
-                });
-              } else {
-                // Complete connection if target device is different from source
-                // Example: User clicks Router2's GigabitEthernet0/1 to complete connection
-                if (selectedDevice.id !== pendingConnection.sourceDeviceId) {
-                  console.log('Creating new connection:', {
-                    source: pendingConnection.sourceDeviceId,
-                    target: selectedDevice.id,
-                    sourceInterface: pendingConnection.sourceInterface,
-                    targetInterface: selectedInterface
-                  });
-                  const newConnection = {
-                    id: Date.now(),
-                    sourceDeviceId: pendingConnection.sourceDeviceId,
-                    targetDeviceId: selectedDevice.id,
-                    sourceInterface: pendingConnection.sourceInterface,
-                    targetInterface: selectedInterface,
-                    type: selectedConnectionType
-                  };
-                  addConnection(newConnection);
-                  setPendingConnection(null);
-                  window.addNotification('Connection created successfully', 'success');
+        <DiagramContainer
+          ref={drop}
+          id="diagram-container"
+          $isDarkMode={isDarkMode}
+          theme={getCurrentTheme()}
+          scale={canvasScale}
+        >
+          {/* SVG container for all network connections
+              Example: Contains all connection lines between devices */}
+          <Connection>
+            {renderConnections()}
+          </Connection>
+          {/* Map through all devices and render NetworkDevice components
+              Example: If devices = [{id: 1, type: 'router', x: 100, y: 100}],
+              it renders a router device at position (100,100) */}
+          {devices.map((device) => (
+            <NetworkDevice
+              key={device.id}
+              id={device.id}
+              type={device.type}
+              icon={device.icon}
+              x={device.x}
+              y={device.y}
+              onDrag={handleDeviceDrag}
+              onDragStop={handleDeviceDragStop}
+              onInterfaceSelect={handleInterfaceSelect}
+              onDelete={handleDeleteDevice}
+              showInterfaceLabels={true}
+              $isDarkMode={isDarkMode}
+              canvasScale={canvasScale}
+            />
+          ))}
+          {/* Context menu for interface selection when creating connections
+              Example: When user clicks a device interface:
+              1. If no pending connection exists:
+                 - Creates new pending connection from selected interface
+              2. If pending connection exists:
+                 - Completes the connection between source and target interfaces */}
+          {showContextMenu && selectedDevice && (
+            <ContextMenu
+              $isDarkMode={isDarkMode}
+              x={contextMenuPosition.x}
+              y={contextMenuPosition.y}
+              interfaces={selectedDevice.interfaces}
+              usedInterfaces={getUsedInterfaces(selectedDevice.id)}
+              onSelect={(selectedInterface) => {
+                console.log('Interface selected:', selectedInterface);
+                // Check if the interface is already used
+                const usedInterfaces = getUsedInterfaces(selectedDevice.id);
+                if (usedInterfaces.includes(selectedInterface.name)) {
+                  window.addNotification('This interface is already in use', 'error');
+                  return;
                 }
-              }
-              setShowContextMenu(false);
-            }}
-            onDelete={() => {
-              handleDeleteDevice(selectedDevice.id);
-              setShowContextMenu(false);
-            }}
-            onClose={() => {
-              console.log('Context menu closed');
-              setShowContextMenu(false);
-            }}
-          />
-        )}
-      </DiagramContainer>
+
+                if (!pendingConnection) {
+                  // Start new connection
+                  // Example: User clicks Router1's GigabitEthernet0/0 interface
+                  console.log('Creating pending connection:', {
+                    sourceDeviceId: selectedDevice.id,
+                    sourceInterface: selectedInterface
+                  });
+                  setPendingConnection({
+                    sourceDeviceId: selectedDevice.id,
+                    sourceInterface: selectedInterface,
+                    type: selectedConnectionType
+                  });
+                } else {
+                  // Complete connection if target device is different from source
+                  // Example: User clicks Router2's GigabitEthernet0/1 to complete connection
+                  if (selectedDevice.id !== pendingConnection.sourceDeviceId) {
+                    console.log('Creating new connection:', {
+                      source: pendingConnection.sourceDeviceId,
+                      target: selectedDevice.id,
+                      sourceInterface: pendingConnection.sourceInterface,
+                      targetInterface: selectedInterface
+                    });
+                    const newConnection = {
+                      id: Date.now(),
+                      sourceDeviceId: pendingConnection.sourceDeviceId,
+                      targetDeviceId: selectedDevice.id,
+                      sourceInterface: pendingConnection.sourceInterface,
+                      targetInterface: selectedInterface,
+                      type: selectedConnectionType
+                    };
+                    addConnection(newConnection);
+                    setPendingConnection(null);
+                    window.addNotification('Connection created successfully', 'success');
+                  }
+                }
+                setShowContextMenu(false);
+              }}
+              onDelete={() => {
+                handleDeleteDevice(selectedDevice.id);
+                setShowContextMenu(false);
+              }}
+              onClose={() => {
+                console.log('Context menu closed');
+                setShowContextMenu(false);
+              }}
+            />
+          )}
+        </DiagramContainer>
+      </DiagramWrapper>
       {/* Side toolbar component for additional tools and options */}
     </MainContainer>
   );

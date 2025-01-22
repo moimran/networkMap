@@ -7,20 +7,43 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
   const [selectedColor, setSelectedColor] = useState(null);
 
   const addConnection = (newConnection) => {
-    // New connections use the default color
-    setConnections(prev => [...prev, { ...newConnection, color: '#666' }]);
+    // New connections use the default color and empty control points
+    setConnections(prev => [...prev, { 
+      ...newConnection, 
+      color: '#666',
+      controlPoints: [] 
+    }]);
     setHasUnsavedChanges(true);
   };
 
   const updateConnection = (connectionId, updates) => {
     console.log('updateConnection - connectionId:', connectionId, 'updates:', updates);
     setConnections(prevConnections => {
+      const newConnections = prevConnections.map(conn => {
+        if (conn.id === connectionId) {
+          // Ensure controlPoints is an array
+          const controlPoints = Array.isArray(updates.controlPoints) ? updates.controlPoints : [];
+          return { 
+            ...conn, 
+            ...updates,
+            controlPoints 
+          };
+        }
+        return conn;
+      });
+      console.log('updateConnection - New connections state:', newConnections);
+      return newConnections;
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const updateConnectionControlPoints = (connectionId, controlPoints) => {
+    setConnections(prevConnections => {
       const newConnections = prevConnections.map(conn => 
         conn.id === connectionId 
-          ? { ...conn, ...updates }
+          ? { ...conn, controlPoints }
           : conn
       );
-      console.log('updateConnection - New connections state:', newConnections);
       return newConnections;
     });
     setHasUnsavedChanges(true);
@@ -65,29 +88,8 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
   };
 
   const handleConnectionClick = (connectionId) => {
-    if (selectedConnectionId === connectionId) {
-      // If clicking the same connection, deselect it
-      setSelectedConnectionId(null);
-      setSelectedColor(null);
-      window.addNotification('Connection unselected', 'info');
-    } else if (connectionId === null) {
-      // If explicitly clearing selection, only show notification if we had a selection
-      setSelectedConnectionId(null);
-      setSelectedColor(null);
-    } else {
-      // Selecting a new connection
-      setSelectedConnectionId(connectionId);
-      const connection = connections.find(conn => conn.id === connectionId);
-      if (connection) {
-        if (connection.type) {
-          setSelectedConnectionType(connection.type);
-        }
-        if (connection.color) {
-          setSelectedColor(connection.color);
-        }
-      }
-      window.addNotification('Connection selected - Choose a color to change it', 'info');
-    }
+    console.log('handleConnectionClick - connectionId:', connectionId);
+    setSelectedConnectionId(connectionId);
   };
 
   const deleteConnectionsForDevice = (deviceId) => {
@@ -104,6 +106,7 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
     selectedColor,
     addConnection,
     updateConnection,
+    updateConnectionControlPoints,
     deleteConnection,
     handleConnectionTypeChange,
     handleConnectionColorChange,

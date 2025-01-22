@@ -26,7 +26,9 @@ const InterfaceLabel = styled.text`
   text-anchor: middle;
 `;
 
-const StyledGroup = styled.g``;
+const StyledGroup = styled.g`
+  pointer-events: all;
+`;
 
 const StyledPath = styled.path`
   stroke: ${props => {
@@ -37,9 +39,11 @@ const StyledPath = styled.path`
   stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
   cursor: pointer;
   transition: stroke 0.2s ease, stroke-width 0.2s ease;
+  pointer-events: all;
 `;
 
 const ConnectionGroup = styled(StyledGroup)`
+  pointer-events: all;
   &:hover {
     ${StyledPath} {
       stroke: #2196F3;
@@ -101,6 +105,18 @@ const ConnectionLine = ({
   const [iconSize, setIconSize] = useState(0);
   const svgRef = useRef(null);
   const colors = connection?.colors || ['#666'];
+
+  const handleMouseEnter = useCallback((e) => {
+    e.stopPropagation();
+    console.debug(`[ConnectionLine] Mouse Enter - Connection: ${connection?.id}`);
+    setIsHovered(true);
+  }, [connection?.id]);
+
+  const handleMouseLeave = useCallback((e) => {
+    e.stopPropagation();
+    console.debug(`[ConnectionLine] Mouse Leave - Connection: ${connection?.id}`);
+    setIsHovered(false);
+  }, [connection?.id]);
 
   // Calculate icon size from SVG element
   useEffect(() => {
@@ -172,7 +188,7 @@ const ConnectionLine = ({
     
     // Use calculated icon size with a fallback
     const effectiveIconSize = iconSize || (() => {
-      console.warn('Icon size not calculated yet, falling back to default size of 70px. This may cause temporary visual inconsistencies.');
+      // console.warn('Icon size not calculated yet, falling back to default size of 70px. This may cause temporary visual inconsistencies.');
       return 70;
     })();
     
@@ -262,12 +278,10 @@ const ConnectionLine = ({
     <ConnectionGroup
       ref={svgRef}
       onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {colors.map((color, index) => (
         <StyledPath
-          key={`${connection.id}-${index}`}
+          key={`${connection?.id}-path-${index}`}
           d={getPathData(type, points)}
           strokeDasharray={getStrokeDashArray(type)}
           $isDarkMode={isDarkMode}
@@ -275,6 +289,8 @@ const ConnectionLine = ({
           $isHovered={isHovered}
           $color={color}
           style={{ opacity: 1 / colors.length }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         />
       ))}
       {/* Source bulb to label or target bulb */}

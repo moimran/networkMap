@@ -410,7 +410,7 @@ function NetworkDiagram() {
               }
             ] */}
         {connections.map((connection, index) => {
-          console.log('Rendering connection:', connection);
+          // console.log('Rendering connection:', connection);
           // Find the source and target devices for this connection
           // Example: Find router1 and switch1 devices from the devices array
           const sourceDevice = devices.find(d => d.id === connection.sourceDeviceId);
@@ -473,6 +473,14 @@ function NetworkDiagram() {
       </>
     );
   };
+
+  // Handler for canvas click to deselect connection
+  const handleCanvasClick = useCallback((e) => {
+    // Only deselect if clicking directly on the canvas, not on a connection or device
+    if (e.target.tagName === 'svg' || e.target.classList.contains('diagram-container')) {
+      handleConnectionClick(null);
+    }
+  }, [handleConnectionClick]);
 
   // Use the useDrop hook to handle dropping a network icon
   const [, drop] = useDrop({
@@ -590,6 +598,8 @@ function NetworkDiagram() {
         $isDarkMode={isDarkMode}
         ref={drop}
         id="diagram-container"
+        className="diagram-container"
+        onClick={handleCanvasClick}
       >
         {/* SVG container for all network connections
             Example: Contains all connection lines between devices */}

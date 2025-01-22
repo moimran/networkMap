@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useTheme } from '../context/ThemeContext';
 
@@ -33,6 +33,7 @@ const NotificationContainer = styled.div`
 
 const NotificationWrapper = styled.div`
   position: relative;
+  display: inline-block;
 `;
 
 const NotificationBell = styled.button`
@@ -79,7 +80,7 @@ const NotificationBadge = styled.div`
 
 const NotificationList = styled.div`
   position: absolute;
-  top: 45px;
+  top: 100%;
   right: 0;
   width: 300px;
   max-height: 400px;
@@ -88,51 +89,60 @@ const NotificationList = styled.div`
   border: 1px solid ${props => props.$isDarkMode ? '#404040' : '#e0e0e0'};
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-top: 8px;
   display: ${props => props.$show ? 'block' : 'none'};
   z-index: 1200;
 `;
 
 const NotificationGroup = styled.div`
   border-bottom: 1px solid ${props => props.$isDarkMode ? '#404040' : '#e0e0e0'};
-  padding: 8px 0;
-
+  
   &:last-child {
     border-bottom: none;
   }
 `;
 
 const NotificationGroupHeader = styled.div`
+  padding: 8px 16px;
+  font-weight: 600;
+  background: ${props => props.$isDarkMode ? '#3d3d3d' : '#f5f5f5'};
+  color: ${props => {
+    if (props.$type === 'error') return '#dc3545';
+    if (props.$type === 'success') return '#28a745';
+    return props.$isDarkMode ? '#ffffff' : '#333333';
+  }};
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: ${props => props.$isDarkMode ? '#363636' : '#f5f5f5'};
-  color: ${props => props.type === 'success' ? '#4CAF50' : '#f44336'};
-  font-weight: 600;
-  font-size: 13px;
 `;
 
 const NotificationGroupCount = styled.span`
-  background: ${props => props.type === 'success' ? '#4CAF50' : '#f44336'};
-  color: white;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: ${props => {
+    if (props.$type === 'error') return '#dc3545';
+    if (props.$type === 'success') return '#28a745';
+    return props.$isDarkMode ? '#4d4d4d' : '#e0e0e0';
+  }};
+  color: #ffffff;
 `;
 
 const NotificationItem = styled.div`
-  padding: 8px 12px;
-  color: ${props => props.$isDarkMode ? '#ffffff' : '#333333'};
-  font-size: 13px;
+  padding: 12px 16px;
   border-bottom: 1px solid ${props => props.$isDarkMode ? '#404040' : '#e0e0e0'};
-  background: ${props => props.$isDarkMode ? '#2d2d2d' : '#ffffff'};
-
+  color: ${props => {
+    if (props.$type === 'error') return '#dc3545';
+    if (props.$type === 'success') return '#28a745';
+    return props.$isDarkMode ? '#ffffff' : '#333333';
+  }};
+  
   &:last-child {
     border-bottom: none;
   }
 
   &:hover {
-    background: ${props => props.$isDarkMode ? '#363636' : '#f5f5f5'};
+    background: ${props => props.$isDarkMode ? '#3d3d3d' : '#f5f5f5'};
   }
 `;
 
@@ -147,6 +157,13 @@ const Toast = styled.div`
   font-size: 13px;
 `;
 
+const ToastContainer = styled.div`
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  z-index: 1100;
+`;
+
 const BellIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
@@ -158,53 +175,84 @@ const Notification = () => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const idCounterRef = useRef(0);
+  const randomRef = useRef(Math.random().toString(36).substr(2, 9));
+
+  const generateUniqueId = useCallback((prefix) => {
+    idCounterRef.current += 1;
+    return `${prefix}_${Date.now()}_${idCounterRef.current}_${randomRef.current}`;
+  }, []);
 
   const groupedNotifications = useMemo(() => {
     const successNotifications = notifications.filter(n => n.type === 'success');
     const errorNotifications = notifications.filter(n => n.type === 'error');
+    const infoNotifications = notifications.filter(n => n.type === 'info');
     return {
       success: successNotifications,
-      error: errorNotifications
+      error: errorNotifications,
+      info: infoNotifications
     };
   }, [notifications]);
 
-  const addNotification = (message, type) => {
+  const handleBellClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowNotifications(prev => !prev);
+  };
+
+  const handleClickOutside = useCallback((event) => {
+    if (showNotifications && !event.target.closest('[data-testid="notification-component"]')) {
+      setShowNotifications(false);
+    }
+  }, [showNotifications]);
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [handleClickOutside]);
+
+  const addNotification = useCallback((message, type = 'info') => {
+    const notificationId = generateUniqueId('notification');
+    const toastId = generateUniqueId('toast');
+
     const newNotification = {
-      id: Date.now(),
+      id: notificationId,
       message,
       type,
       timestamp: new Date()
     };
     setNotifications(prev => [newNotification, ...prev]);
     
-    // Add toast
-    const newToast = { ...newNotification };
+    const newToast = { 
+      ...newNotification,
+      id: toastId
+    };
     setToasts(prev => [newToast, ...prev]);
 
-    // Remove toast after 2 seconds
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== newToast.id));
+      setToasts(prev => prev.filter(t => t.id !== toastId));
     }, 2000);
 
-    // Clear notification after 5 minutes
     setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
     }, 5 * 60 * 1000);
-  };
+  }, [generateUniqueId]);
 
-  // Expose addNotification to window for global access
   useEffect(() => {
     window.addNotification = addNotification;
     return () => {
       delete window.addNotification;
     };
-  }, []);
+  }, [addNotification]);
 
   return (
-    <NotificationWrapper>
+    <NotificationWrapper data-testid="notification-component">
       <NotificationBell 
         $isDarkMode={isDarkMode}
-        onClick={() => setShowNotifications(!showNotifications)}
+        onClick={handleBellClick}
+        data-testid="notification-bell"
       >
         <BellIcon />
         {notifications.length > 0 && (
@@ -215,6 +263,7 @@ const Notification = () => {
       <NotificationList 
         $isDarkMode={isDarkMode}
         $show={showNotifications}
+        data-testid="notification-list"
       >
         {notifications.length === 0 ? (
           <NotificationItem $isDarkMode={isDarkMode}>
@@ -222,18 +271,19 @@ const Notification = () => {
           </NotificationItem>
         ) : (
           <>
-            {groupedNotifications.success.length > 0 && (
+            {groupedNotifications.error.length > 0 && (
               <NotificationGroup $isDarkMode={isDarkMode}>
-                <NotificationGroupHeader $isDarkMode={isDarkMode} type="success">
-                  Success
-                  <NotificationGroupCount type="success">
-                    {groupedNotifications.success.length}
+                <NotificationGroupHeader $isDarkMode={isDarkMode} $type="error">
+                  Errors
+                  <NotificationGroupCount $type="error">
+                    {groupedNotifications.error.length}
                   </NotificationGroupCount>
                 </NotificationGroupHeader>
-                {groupedNotifications.success.map(notification => (
+                {groupedNotifications.error.map(notification => (
                   <NotificationItem 
                     key={notification.id}
                     $isDarkMode={isDarkMode}
+                    $type="error"
                   >
                     {notification.message}
                   </NotificationItem>
@@ -241,15 +291,35 @@ const Notification = () => {
               </NotificationGroup>
             )}
 
-            {groupedNotifications.error.length > 0 && (
+            {groupedNotifications.success.length > 0 && (
               <NotificationGroup $isDarkMode={isDarkMode}>
-                <NotificationGroupHeader $isDarkMode={isDarkMode} type="error">
-                  Unsuccessful
-                  <NotificationGroupCount type="error">
-                    {groupedNotifications.error.length}
+                <NotificationGroupHeader $isDarkMode={isDarkMode} $type="success">
+                  Success
+                  <NotificationGroupCount $type="success">
+                    {groupedNotifications.success.length}
                   </NotificationGroupCount>
                 </NotificationGroupHeader>
-                {groupedNotifications.error.map(notification => (
+                {groupedNotifications.success.map(notification => (
+                  <NotificationItem 
+                    key={notification.id}
+                    $isDarkMode={isDarkMode}
+                    $type="success"
+                  >
+                    {notification.message}
+                  </NotificationItem>
+                ))}
+              </NotificationGroup>
+            )}
+
+            {groupedNotifications.info.length > 0 && (
+              <NotificationGroup $isDarkMode={isDarkMode}>
+                <NotificationGroupHeader $isDarkMode={isDarkMode}>
+                  Information
+                  <NotificationGroupCount>
+                    {groupedNotifications.info.length}
+                  </NotificationGroupCount>
+                </NotificationGroupHeader>
+                {groupedNotifications.info.map(notification => (
                   <NotificationItem 
                     key={notification.id}
                     $isDarkMode={isDarkMode}
@@ -263,16 +333,13 @@ const Notification = () => {
         )}
       </NotificationList>
 
-      <NotificationContainer>
+      <ToastContainer>
         {toasts.map(toast => (
-          <Toast 
-            key={toast.id}
-            type={toast.type}
-          >
+          <Toast key={toast.id} type={toast.type}>
             {toast.message}
           </Toast>
         ))}
-      </NotificationContainer>
+      </ToastContainer>
     </NotificationWrapper>
   );
 };

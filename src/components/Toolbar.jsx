@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTheme } from '../context/ThemeContext';
 import Notification from './Notification';
@@ -106,7 +106,9 @@ const Toolbar = ({ children }) => {
         >
           {isDarkMode ? <SunIcon /> : <MoonIcon />}
         </IconButton>
-        <Notification />
+        <div data-testid="notification-wrapper">
+          <Notification />
+        </div>
       </RightIconsContainer>
     </ToolbarContainer>
   );

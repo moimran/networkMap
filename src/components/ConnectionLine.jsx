@@ -34,20 +34,42 @@ const StyledPath = styled.path`
   stroke: ${props => {
     if (props.$selected) return '#4CAF50';
     if (props.$isHovered) return '#2196F3';
-    return props.$color || (props.$isDarkMode ? '#666' : '#666');
+    return props.$color || (props.$isDarkMode ? '#666' : '#999');
   }};
   stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
+  fill: none;
+  transition: all 0.2s ease-in-out;
   cursor: pointer;
-  transition: stroke 0.2s ease, stroke-width 0.2s ease;
-  pointer-events: all;
+  filter: ${props => props.$selected ? 
+    'drop-shadow(0 0 4px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 8px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 12px rgba(0, 0, 0, 0.2))' :
+    'drop-shadow(0 0 1px rgba(0, 0, 0, 0.2))'
+  };
+
+  &:hover {
+    stroke: ${props => props.$isDarkMode ? '#fff' : '#333'};
+    stroke-width: 3;
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.3))
+           drop-shadow(0 0 6px rgba(0, 0, 0, 0.2))
+           drop-shadow(0 0 9px rgba(0, 0, 0, 0.1));
+  }
+
+  &.selected {
+    stroke: ${props => props.$isDarkMode ? '#fff' : '#333'};
+    stroke-width: 3;
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.4))
+           drop-shadow(0 0 8px rgba(0, 0, 0, 0.3))
+           drop-shadow(0 0 12px rgba(0, 0, 0, 0.2));
+  }
 `;
 
 const ConnectionGroup = styled(StyledGroup)`
   pointer-events: all;
   &:hover {
     ${StyledPath} {
-      stroke: #2196F3;
       stroke-width: 3;
+      filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.3))
+             drop-shadow(0 0 6px rgba(0, 0, 0, 0.2))
+             drop-shadow(0 0 9px rgba(0, 0, 0, 0.1));
     }
     ${ConnectionBulb} {
       fill: #2196F3;

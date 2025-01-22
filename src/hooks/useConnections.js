@@ -39,7 +39,10 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
   };
 
   const handleConnectionClick = (connectionId) => {
-    if (selectedConnection === connectionId) {
+    if (selectedConnection !== null && selectedConnection === connectionId) {
+      setSelectedConnection(null);
+      window.addNotification('Connection unselected', 'info');
+    } else if (connectionId === null) {
       setSelectedConnection(null);
     } else {
       setSelectedConnection(connectionId);
@@ -52,7 +55,6 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
           setSelectedColors(connection.colors);
         }
       }
-      window.addNotification('Connection selected - Choose connection type or colors to change it', 'info');
     }
   };
 

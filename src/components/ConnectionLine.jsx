@@ -33,7 +33,7 @@ const StyledGroup = styled.g`
 const StyledPath = styled.path`
   stroke: ${props => props.$color || '#666'};
   stroke-width: ${props => (props.$selected || props.$isHovered) ? '3' : '2'};
-  stroke-dasharray: ${props => props.strokeDasharray || 'none'};
+  stroke-dasharray: ${props => props.$type === 'dashed' ? '8,4' : props.$type === 'dotted' ? '2,2' : 'none'};
   fill: ${props => props.fill || 'none'};
   transition: all 0.2s ease;
   cursor: pointer;
@@ -63,9 +63,9 @@ const ConnectionGroup = styled(StyledGroup)`
 const getStrokeDashArray = (type) => {
   switch (type) {
     case 'dashed':
-      return '8,8';
+      return '8,4';
     case 'dotted':
-      return '2,4';
+      return '2,2';
     default:
       return 'none';
   }
@@ -291,10 +291,10 @@ const ConnectionLine = ({
     >
       <StyledPath
         d={getPathData(type, points)}
-        strokeDasharray={getStrokeDashArray(type)}
+        $type={type}
+        $color={lineColor}
         $selected={selected}
         $isHovered={isHovered}
-        $color={lineColor}
         $isDarkMode={isDarkMode}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -308,6 +308,7 @@ const ConnectionLine = ({
           $selected={selected}
           $isHovered={isHovered}
           $color={lineColor}
+          $type={type}
         />
       ) : (
         <StyledPath
@@ -317,6 +318,7 @@ const ConnectionLine = ({
           $selected={selected}
           $isHovered={isHovered}
           $color={lineColor}
+          $type={type}
         />
       )}
 
@@ -329,6 +331,7 @@ const ConnectionLine = ({
           $selected={selected}
           $isHovered={isHovered}
           $color={lineColor}
+          $type={type}
         />
       )}
 
@@ -341,6 +344,7 @@ const ConnectionLine = ({
           $selected={selected}
           $isHovered={isHovered}
           $color={lineColor}
+          $type={type}
         />
       )}
 

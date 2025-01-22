@@ -199,9 +199,7 @@ const ConnectionPreview = styled.div`
 const connectionTypes = [
   { id: 'solid', label: 'Solid Line' },
   { id: 'dashed', label: 'Dashed Line' },
-  { id: 'dotted', label: 'Dotted Line' },
-  { id: 'curved', label: 'Curved Line' },
-  { id: 'angled', label: 'Angled Line' }
+  { id: 'dotted', label: 'Dotted Line' }
 ];
 
 const connectionColors = [

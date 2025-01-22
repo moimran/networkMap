@@ -470,13 +470,21 @@ function NetworkDiagram() {
     );
   };
 
-  // Handler for canvas click to deselect connection
-  const handleCanvasClick = useCallback((e) => {
-    // Only deselect if clicking directly on the canvas, not on a connection or device
-    if (e.target.tagName === 'svg' || e.target.classList.contains('diagram-container')) {
-      handleConnectionClick(null);
-    }
-  }, [handleConnectionClick]);
+  // Effect hook to handle clicks outside the context menu
+  useEffect(() => {
+    const handleClick = (e) => {
+      // Only handle clicks on the diagram container itself, not its children
+      if (e.target.id === 'diagram-container') {
+        setShowContextMenu(false);
+        // Only deselect if we have a selected connection
+        if (selectedConnectionId !== null) {
+          handleConnectionClick(null);
+        }
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [handleConnectionClick, selectedConnectionId]);
 
   // Use the useDrop hook to handle dropping a network icon
   const [, drop] = useDrop({
@@ -524,17 +532,6 @@ function NetworkDiagram() {
       window.addNotification(`Added new ${item.type} device`, 'success');
     },
   });
-
-  // Effect hook to handle clicks outside the context menu
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (!e.target.closest('.context-menu')) {
-        setShowContextMenu(false);
-      }
-    };
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, []);
 
   // Effect hook to handle mouse move events when a connection is pending
   useEffect(() => {
@@ -591,11 +588,8 @@ function NetworkDiagram() {
       {/* Main diagram container where devices and connections are rendered
           Example: This is the drop target for new devices when dragged from LeftMenu */}
       <DiagramContainer
-        $isDarkMode={isDarkMode}
         ref={drop}
         id="diagram-container"
-        className="diagram-container"
-        onClick={handleCanvasClick}
       >
         {/* SVG container for all network connections
             Example: Contains all connection lines between devices */}

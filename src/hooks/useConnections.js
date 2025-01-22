@@ -71,7 +71,7 @@ export const useConnections = (setHasUnsavedChanges, connections, setConnections
       setSelectedColor(null);
       window.addNotification('Connection unselected', 'info');
     } else if (connectionId === null) {
-      // If explicitly clearing selection
+      // If explicitly clearing selection, only show notification if we had a selection
       setSelectedConnectionId(null);
       setSelectedColor(null);
     } else {

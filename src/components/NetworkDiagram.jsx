@@ -634,6 +634,18 @@ function NetworkDiagram() {
     };
   };
 
+  // Function to calculate the point where line intersects with device icon circle
+  const calculateEdgePoint = (sourceX, sourceY, targetX, targetY, deviceRadius = 30) => {
+    // Calculate angle between points
+    const angle = Math.atan2(targetY - sourceY, targetX - sourceX);
+    
+    // Calculate point on the circle's edge
+    return {
+      x: sourceX + deviceRadius * Math.cos(angle),
+      y: sourceY + deviceRadius * Math.sin(angle)
+    };
+  };
+
   // Function to render the connections
   // Example: When user creates a connection, this will:
   // 1. Render the connection line
@@ -641,34 +653,16 @@ function NetworkDiagram() {
   const renderConnections = () => {
     return (
       <>
-        {/* Map through all established connections and render them
-            Example: connections = [
-              {
-                id: 1,
-                sourceDeviceId: 'router1',
-                targetDeviceId: 'switch1',
-                sourceInterface: 'GigabitEthernet0/0',
-                targetInterface: 'GigabitEthernet0/1',
-                type: 'solid'
-              }
-            ] */}
-        {connections.map((connection, index) => {
-          // console.log('Rendering connection:', connection);
-          // Find the source and target devices for this connection
-          // Example: Find router1 and switch1 devices from the devices array
+        {connections.map((connection) => {
           const sourceDevice = devices.find(d => d.id === connection.sourceDeviceId);
           const targetDevice = devices.find(d => d.id === connection.targetDeviceId);
 
-          // Skip rendering if either device is missing (prevents errors)
-          // Example: If router1 or switch1 was deleted but connection still exists
           if (!sourceDevice || !targetDevice) {
             console.log('Missing device for connection:', { sourceDevice, targetDevice });
             return null;
           }
 
-          // Calculate the center points of both devices for connection line
-          // Example: If router1 is at (100, 100), its center will be at (130, 130)
-          // The +30 offset is half the device width/height (60px) to find center
+          // Calculate device centers
           const sourceCenter = {
             x: sourceDevice.x + 30,
             y: sourceDevice.y + 30
@@ -678,18 +672,31 @@ function NetworkDiagram() {
             y: targetDevice.y + 30
           };
 
-          // Render the connection line between devices
-          // Example: Draw a line from router1's center (130, 130) to switch1's center (230, 230)
+          // Calculate edge points where line should start/end
+          const sourceEdge = calculateEdgePoint(
+            sourceCenter.x, 
+            sourceCenter.y, 
+            targetCenter.x, 
+            targetCenter.y
+          );
+
+          const targetEdge = calculateEdgePoint(
+            targetCenter.x, 
+            targetCenter.y, 
+            sourceCenter.x, 
+            sourceCenter.y
+          );
+
           console.log('Rendering connection:', connection);
           return (
             <React.Fragment key={connection.id}>
               <ConnectionLine
                 key={connection.id}
                 connection={connection}
-                sourceX={sourceCenter.x}
-                sourceY={sourceCenter.y}
-                targetX={targetCenter.x}
-                targetY={targetCenter.y}
+                sourceX={sourceEdge.x}
+                sourceY={sourceEdge.y}
+                targetX={targetEdge.x}
+                targetY={targetEdge.y}
                 type={connection.type || selectedConnectionType}
                 color={selectedConnectionId === connection.id ? selectedColor : connection.color}
                 selected={selectedConnectionId === connection.id}
@@ -699,20 +706,35 @@ function NetworkDiagram() {
             </React.Fragment>
           );
         })}
-        {/* Render a pending connection line when user is creating a new connection
-            Example: When user clicks router1's interface and moves mouse to switch1,
-            this draws a dashed line from router1's center to the current mouse position */}
         {pendingConnection && (
           <PendingConnectionGroup>
-            <path
-              d={`M ${devices.find(d => d.id === pendingConnection.sourceDeviceId).x + 30} 
-                  ${devices.find(d => d.id === pendingConnection.sourceDeviceId).y + 30} 
-                  L ${mousePosition.x} ${mousePosition.y}`}
-              stroke="#666"
-              strokeWidth="2"
-              strokeDasharray="5,5"
-              fill="none"
-            />
+            {/* Also update pending connection to use edge points */}
+            {(() => {
+              const sourceDevice = devices.find(d => d.id === pendingConnection.sourceDeviceId);
+              if (!sourceDevice) return null;
+
+              const sourceCenter = {
+                x: sourceDevice.x + 30,
+                y: sourceDevice.y + 30
+              };
+
+              const sourceEdge = calculateEdgePoint(
+                sourceCenter.x,
+                sourceCenter.y,
+                mousePosition.x,
+                mousePosition.y
+              );
+
+              return (
+                <path
+                  d={`M ${sourceEdge.x} ${sourceEdge.y} L ${mousePosition.x} ${mousePosition.y}`}
+                  stroke="#666"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                  fill="none"
+                />
+              );
+            })()}
           </PendingConnectionGroup>
         )}
       </>

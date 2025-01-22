@@ -31,23 +31,6 @@ const IconContainer = styled.div`
   }
 `;
 
-// Styled component for the device label
-const Label = styled.div`
-  font-size: 12px;
-  color: #333;
-  margin-top: 4px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid #ddd;
-  position: absolute;
-  top: -25px;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  z-index: 2;
-`;
-
 // Styled component for the device menu
 const DeviceMenu = styled.div`
   position: absolute;
@@ -289,7 +272,6 @@ const NetworkDevice = ({
       }}
       onMouseDown={handleMouseDown}
     >
-      <Label>{type}</Label>
       <IconContainer>
         <img src={icon} alt={type} onContextMenu={handleContextMenu} />
       </IconContainer>
